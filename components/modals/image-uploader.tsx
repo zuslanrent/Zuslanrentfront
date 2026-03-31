@@ -1,15 +1,17 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { ImagePlus, X, GripVertical, AlertCircle } from "lucide-react"
+import { useRef, useState, useCallback } from "react"
+import { ImagePlus, X, GripVertical, AlertCircle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-interface UploadedImage {
-  id:      string
-  file:    File
-  preview: string
-  name:    string
-  size:    number
+export interface UploadedImage {
+  id:        string
+  preview:   string
+  url:       string       // ← Cloudinary URL
+  public_id: string       // ← Cloudinary public_id (устгахад хэрэгтэй)
+  name:      string
+  size:      number
+  uploading?: boolean
 }
 
 interface Props {
@@ -18,15 +20,37 @@ interface Props {
   maxImages?: number
 }
 
-export type { UploadedImage }
-
 export function ImageUploader({ images, onChange, maxImages = 8 }: Props) {
-  const inputRef    = useRef<HTMLInputElement>(null)
-  const [error, setError] = useState("")
+  const inputRef       = useRef<HTMLInputElement>(null)
+  const [error, setError]     = useState("")
   const [dragging, setDragging] = useState(false)
   const [dragOver, setDragOver] = useState<string | null>(null)
 
-  const addFiles = (files: FileList | null) => {
+  const uploadToCloud = async (files: File[]): Promise<UploadedImage[]> => {
+    const formData = new FormData()
+    files.forEach(f => formData.append("images", f))
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload/images`, {
+      method:      "POST",
+      credentials: "include",
+      body:        formData,
+    })
+
+    if (!res.ok) throw new Error("Upload амжилтгүй")
+
+    const data = await res.json()
+
+    return files.map((file, i) => ({
+      id:        crypto.randomUUID(),
+      preview:   data.urls[i].url,
+      url:       data.urls[i].url,
+      public_id: data.urls[i].public_id,
+      name:      file.name,
+      size:      file.size,
+    }))
+  }
+
+  const addFiles = useCallback(async (files: FileList | null) => {
     if (!files) return
     setError("")
 
@@ -36,50 +60,63 @@ export function ImageUploader({ images, onChange, maxImages = 8 }: Props) {
       return
     }
 
-    const allowed   = Array.from(files).slice(0, remaining)
-    const invalid   = allowed.filter(f => !f.type.startsWith("image/"))
+    const allowed = Array.from(files).slice(0, remaining)
+    const invalid = allowed.filter(f => !f.type.startsWith("image/"))
     if (invalid.length > 0) { setError("Зөвхөн зургийн файл оруулна уу"); return }
 
     const tooBig = allowed.filter(f => f.size > 5 * 1024 * 1024)
     if (tooBig.length > 0) { setError("Зураг тус бүр 5MB-аас бага байх ёстой"); return }
 
-    const newImages: UploadedImage[] = allowed.map(file => ({
-      id:      crypto.randomUUID(),
-      file,
-      preview: URL.createObjectURL(file),
-      name:    file.name,
-      size:    file.size,
+    // Placeholder — uploading харуулах
+    const placeholders: UploadedImage[] = allowed.map(file => ({
+      id:        crypto.randomUUID(),
+      preview:   URL.createObjectURL(file),
+      url:       "",
+      public_id: "",
+      name:      file.name,
+      size:      file.size,
+      uploading: true,
     }))
+    onChange([...images, ...placeholders])
 
-    onChange([...images, ...newImages])
-  }
+    try {
+      const uploaded = await uploadToCloud(allowed)
+      // Placeholder-г бодит зургаар солих
+      onChange([
+        ...images,
+        ...uploaded,
+      ])
+    } catch (err) {
+      setError("Upload амжилтгүй. Дахин оролдоно уу.")
+      // Placeholder устгах
+      onChange(images)
+    }
+  }, [images, maxImages, onChange])
 
-  const remove = (id: string) => {
-    const img = images.find(i => i.id === id)
-    if (img) URL.revokeObjectURL(img.preview)
-    onChange(images.filter(i => i.id !== id))
+  const remove = async (img: UploadedImage) => {
+    // Cloudinary-с устгах
+    if (img.public_id) {
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload/image`, {
+          method:      "DELETE",
+          credentials: "include",
+          headers:     { "Content-Type": "application/json" },
+          body:        JSON.stringify({ public_id: img.public_id }),
+        })
+      } catch (err) {
+        console.error("Зураг устгах алдаа:", err)
+      }
+    }
+    if (img.preview.startsWith("blob:")) URL.revokeObjectURL(img.preview)
+    onChange(images.filter(i => i.id !== img.id))
     setError("")
   }
 
   const setCover = (id: string) => {
-    const reordered = [
+    onChange([
       ...images.filter(i => i.id === id),
       ...images.filter(i => i.id !== id),
-    ]
-    onChange(reordered)
-  }
-
-  // Drag sort
-  const handleDragStart = (id: string) => setDragOver(id)
-  const handleDropOn = (targetId: string) => {
-    if (!dragOver || dragOver === targetId) { setDragOver(null); return }
-    const from  = images.findIndex(i => i.id === dragOver)
-    const to    = images.findIndex(i => i.id === targetId)
-    const reordered = [...images]
-    const [moved] = reordered.splice(from, 1)
-    reordered.splice(to, 0, moved)
-    onChange(reordered)
-    setDragOver(null)
+    ])
   }
 
   const handleDrop = (e: React.DragEvent) => {
@@ -88,17 +125,27 @@ export function ImageUploader({ images, onChange, maxImages = 8 }: Props) {
     addFiles(e.dataTransfer.files)
   }
 
+  const handleDropOn = (targetId: string) => {
+    if (!dragOver || dragOver === targetId) { setDragOver(null); return }
+    const from = images.findIndex(i => i.id === dragOver)
+    const to   = images.findIndex(i => i.id === targetId)
+    const reordered = [...images]
+    const [moved] = reordered.splice(from, 1)
+    reordered.splice(to, 0, moved)
+    onChange(reordered)
+    setDragOver(null)
+  }
+
+  const isUploading = images.some(i => i.uploading)
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-sm font-semibold">
-          Зурагнууд
-          <span className="text-destructive ml-1">*</span>
+          Зурагнууд <span className="text-destructive">*</span>
         </label>
-        <span className={cn(
-          "text-xs font-medium",
-          images.length >= maxImages ? "text-destructive" : "text-muted-foreground"
-        )}>
+        <span className={cn("text-xs font-medium",
+          images.length >= maxImages ? "text-destructive" : "text-muted-foreground")}>
           {images.length} / {maxImages}
         </span>
       </div>
@@ -106,29 +153,31 @@ export function ImageUploader({ images, onChange, maxImages = 8 }: Props) {
       {/* Drop zone */}
       {images.length < maxImages && (
         <div
-          onClick={() => inputRef.current?.click()}
+          onClick={() => !isUploading && inputRef.current?.click()}
           onDragOver={e => { e.preventDefault(); setDragging(true) }}
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
           className={cn(
-            "flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed cursor-pointer transition-all",
+            "flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed transition-all",
+            isUploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
             dragging
               ? "border-primary bg-primary/5 scale-[1.01]"
               : "border-border/60 hover:border-primary/50 hover:bg-muted/40"
           )}
         >
-          <div className={cn(
-            "p-3 rounded-full transition-colors",
-            dragging ? "bg-primary/10" : "bg-muted"
-          )}>
-            <ImagePlus className={cn("h-5 w-5", dragging ? "text-primary" : "text-muted-foreground")} />
+          <div className={cn("p-3 rounded-full transition-colors",
+            dragging ? "bg-primary/10" : "bg-muted")}>
+            {isUploading
+              ? <Loader2 className="h-5 w-5 text-primary animate-spin" />
+              : <ImagePlus className={cn("h-5 w-5", dragging ? "text-primary" : "text-muted-foreground")} />
+            }
           </div>
           <div className="text-center">
             <p className="text-sm font-medium">
-              {dragging ? "Зургийг энд тавина уу" : "Зураг нэмэх"}
+              {isUploading ? "Зураг upload хийж байна..." : dragging ? "Зургийг энд тавина уу" : "Зураг нэмэх"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Дарах эсвэл чирж оруулах • PNG, JPG, WEBP • Тус бүр 5MB хүртэл
+              Дарах эсвэл чирж оруулах • PNG, JPG, WEBP • 5MB хүртэл
             </p>
           </div>
           <input
@@ -155,63 +204,65 @@ export function ImageUploader({ images, onChange, maxImages = 8 }: Props) {
           {images.map((img, idx) => (
             <div
               key={img.id}
-              draggable
-              onDragStart={() => handleDragStart(img.id)}
+              draggable={!img.uploading}
+              onDragStart={() => setDragOver(img.id)}
               onDragOver={e => e.preventDefault()}
               onDrop={() => handleDropOn(img.id)}
-              onClick={() => setCover(img.id)}
+              onClick={() => !img.uploading && setCover(img.id)}
               className={cn(
-                "relative group aspect-square rounded-xl overflow-hidden border-2 cursor-pointer transition-all",
+                "relative group aspect-square rounded-xl overflow-hidden border-2 transition-all",
                 idx === 0
-                  ? "border-primary shadow-md shadow-primary/20 col-span-2 row-span-2"
+                  ? "border-primary shadow-md col-span-2 row-span-2"
                   : "border-border/60 hover:border-primary/40",
+                img.uploading ? "cursor-wait" : "cursor-pointer",
                 dragOver === img.id && "border-primary/60 scale-95"
               )}
             >
               <img
                 src={img.preview}
                 alt={img.name}
-                className="w-full h-full object-cover"
+                className={cn("w-full h-full object-cover", img.uploading && "opacity-50")}
               />
 
+              {/* Uploading spinner */}
+              {img.uploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/40">
+                  <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                </div>
+              )}
+
               {/* Cover badge */}
-              {idx === 0 && (
+              {idx === 0 && !img.uploading && (
                 <div className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground shadow">
                   НҮҮР
                 </div>
               )}
 
-              {/* Drag handle */}
-              <div className="absolute top-1.5 right-7 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="p-0.5 rounded bg-black/50 cursor-grab">
-                  <GripVertical className="h-3 w-3 text-white" />
-                </div>
-              </div>
-
               {/* Remove */}
-              <button
-                onClick={e => { e.stopPropagation(); remove(img.id) }}
-                className="absolute top-1.5 right-1.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive"
-              >
-                <X className="h-3 w-3" />
-              </button>
-
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+              {!img.uploading && (
+                <button
+                  onClick={e => { e.stopPropagation(); remove(img) }}
+                  className="absolute top-1.5 right-1.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
 
               {/* Size info */}
-              <div className="absolute bottom-1 left-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <p className="text-[9px] text-white bg-black/50 rounded px-1 truncate text-center">
-                  {(img.size / 1024).toFixed(0)}KB
-                </p>
-              </div>
+              {!img.uploading && (
+                <div className="absolute bottom-1 left-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <p className="text-[9px] text-white bg-black/50 rounded px-1 truncate text-center">
+                    {(img.size / 1024).toFixed(0)}KB
+                  </p>
+                </div>
+              )}
             </div>
           ))}
 
-          {/* Add more slot */}
+          {/* Add more */}
           {images.length < maxImages && images.length > 0 && (
             <div
-              onClick={() => inputRef.current?.click()}
+              onClick={() => !isUploading && inputRef.current?.click()}
               className="aspect-square rounded-xl border-2 border-dashed border-border/60 flex items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-muted/40 transition-all"
             >
               <ImagePlus className="h-5 w-5 text-muted-foreground" />
@@ -220,9 +271,9 @@ export function ImageUploader({ images, onChange, maxImages = 8 }: Props) {
         </div>
       )}
 
-      {images.length > 0 && (
+      {images.length > 0 && !isUploading && (
         <p className="text-xs text-muted-foreground">
-          💡 Эхний зураг нүүр зураг болно • Зургийг чирж эрэмбийг өөрчлөх боломжтой • Дарахад нүүр зураг болгоно
+          💡 Эхний зураг нүүр зураг • Чирж эрэмбийг өөрчлөх • Дарахад нүүр болгоно
         </p>
       )}
     </div>

@@ -3,44 +3,85 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
-import { MapPin, BedDouble, Bath, Square, Phone,
-         Plus, Pencil, Trash2, Eye, Clock } from "lucide-react"
+import {
+  MapPin, BedDouble, Bath, Square,
+  Plus, Pencil, Trash2, Eye, Clock, Loader2,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { RegisterModal } from "@/components/modals/register-modal"
+import { ListingRegisterModal } from "@/components/modals/listing-register-modal"
 
-// Mock data — backend холбосны дараа API-аас авна
-const mockMyListings = [
-  {
-    id: "1", title: "Богдхан орчмын зуслан", location: "Богдхан",
-    price: 150000, image: "/images/house1.jpg",
-    rooms: 3, bathrooms: 2, area: 120, phone: "9900-1234",
-    status: "active", views: 48, created_at: "2025-03-01",
-  },
-  {
-    id: "2", title: "Тэрэлж ойн орчим байшин", location: "Тэрэлж",
-    price: 120000, image: "/images/house3.jpg",
-    rooms: 2, bathrooms: 1, area: 90, phone: "9911-3344",
-    status: "pending", views: 12, created_at: "2025-03-15",
-  },
-]
+interface Listing {
+  id:            string
+  title:         string
+  location_name: string
+  price_per_day: number
+  cover_image:   string | null
+  rooms:         number
+  bathrooms:     number
+  area_sqm:      number
+  status:        string
+  view_count:    number
+  created_at:    string
+}
 
 const statusConfig: Record<string, { label: string; color: string }> = {
-  active:   { label: "Идэвхтэй",   color: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400" },
-  pending:  { label: "Хүлээгдэж байна", color: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400"   },
-  inactive: { label: "Идэвхгүй",   color: "bg-muted text-muted-foreground"                                               },
-  rejected: { label: "Татгалзсан", color: "bg-destructive/10 text-destructive"                                           },
+  active:   { label: "Идэвхтэй",        color: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400" },
+  pending:  { label: "Хүлээгдэж байна", color: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400"         },
+  inactive: { label: "Идэвхгүй",        color: "bg-muted text-muted-foreground"                                               },
+  rejected: { label: "Татгалзсан",      color: "bg-destructive/10 text-destructive"                                           },
 }
 
 export default function MyListingsPage() {
-  const { isLoggedIn, user } = useAuth()
-  const router               = useRouter()
-  const [addOpen, setAddOpen] = useState(false)
+  const { isLoggedIn, user, token } = useAuth()
+  const router = useRouter()
 
-  // Нэвтрээгүй бол нүүр хуудас руу
+  const [listings, setListings] = useState<Listing[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [error,    setError]    = useState("")
+  const [addOpen,  setAddOpen]  = useState(false)
+
   useEffect(() => {
     if (!isLoggedIn) router.push("/")
   }, [isLoggedIn, router])
+
+  // Миний зарыг backend-аас авах
+  const fetchMyListings = async () => {
+    if (!token) return
+    setLoading(true)
+    setError("")
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/listings/my`, {
+        headers: { "Authorization": `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Алдаа гарлаа")
+      setListings(data.data || data)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isLoggedIn && token) fetchMyListings()
+  }, [isLoggedIn, token])
+
+  // Зар устгах
+  const handleDelete = async (id: string) => {
+    if (!confirm("Зарыг устгах уу?")) return
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/listings/${id}`, {
+        method:  "DELETE",
+        headers: { "Authorization": `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error("Устгах амжилтгүй")
+      setListings(prev => prev.filter(l => l.id !== id))
+    } catch (err: any) {
+      alert(err.message)
+    }
+  }
 
   if (!isLoggedIn) return null
 
@@ -53,7 +94,7 @@ export default function MyListingsPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold">Миний зарууд</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              {user?.name} • {mockMyListings.length} зар
+              {user?.name} • {listings.length} зар
             </p>
           </div>
           <Button onClick={() => setAddOpen(true)} className="gap-2">
@@ -64,9 +105,9 @@ export default function MyListingsPage() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-8">
           {[
-            { label: "Нийт зар",    value: mockMyListings.length,                                          color: "text-foreground"                      },
-            { label: "Идэвхтэй",   value: mockMyListings.filter(l => l.status === "active").length,   color: "text-emerald-600 dark:text-emerald-400" },
-            { label: "Нийт үзэлт", value: mockMyListings.reduce((s, l) => s + l.views, 0),            color: "text-primary"                          },
+            { label: "Нийт зар",    value: listings.length,                                       color: "text-foreground"                       },
+            { label: "Идэвхтэй",   value: listings.filter(l => l.status === "active").length,   color: "text-emerald-600 dark:text-emerald-400" },
+            { label: "Нийт үзэлт", value: listings.reduce((s, l) => s + (l.view_count || 0), 0), color: "text-primary"                          },
           ].map(({ label, value, color }) => (
             <div key={label} className="p-4 rounded-2xl border border-border/60 bg-background text-center">
               <p className={cn("text-2xl font-bold", color)}>{value}</p>
@@ -75,8 +116,24 @@ export default function MyListingsPage() {
           ))}
         </div>
 
-        {/* Listings */}
-        {mockMyListings.length === 0 ? (
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-20 text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin mr-3" />
+            <span>Ачааллаж байна...</span>
+          </div>
+        )}
+
+        {/* Error */}
+        {!loading && error && (
+          <div className="text-center py-20">
+            <p className="text-destructive mb-4">{error}</p>
+            <Button variant="outline" onClick={fetchMyListings}>Дахин оролдох</Button>
+          </div>
+        )}
+
+        {/* Empty */}
+        {!loading && !error && listings.length === 0 && (
           <div className="text-center py-20 text-muted-foreground">
             <div className="text-5xl mb-4">🏠</div>
             <p className="font-medium mb-2">Зар байхгүй байна</p>
@@ -85,9 +142,12 @@ export default function MyListingsPage() {
               <Plus className="h-4 w-4" /> Зар нэмэх
             </Button>
           </div>
-        ) : (
+        )}
+
+        {/* Listings */}
+        {!loading && !error && listings.length > 0 && (
           <div className="space-y-4">
-            {mockMyListings.map((listing) => {
+            {listings.map((listing) => {
               const status = statusConfig[listing.status] ?? statusConfig.pending
               return (
                 <div key={listing.id}
@@ -95,8 +155,12 @@ export default function MyListingsPage() {
 
                   {/* Зураг */}
                   <div className="w-28 h-24 sm:w-36 sm:h-28 rounded-xl overflow-hidden shrink-0 bg-muted">
-                    <img src={listing.image || "/placeholder.svg"} alt={listing.title}
-                      className="block w-full h-full object-cover" />
+                    <img
+                      src={listing.cover_image || "/placeholder.svg"}
+                      alt={listing.title}
+                      className="block w-full h-full object-cover"
+                      loading="lazy"
+                    />
                   </div>
 
                   {/* Мэдээлэл */}
@@ -111,31 +175,30 @@ export default function MyListingsPage() {
 
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                         <MapPin className="h-3 w-3 shrink-0" />
-                        <span>{listing.location}</span>
+                        <span>{listing.location_name}</span>
                         <span className="mx-1">•</span>
                         <Clock className="h-3 w-3 shrink-0" />
-                        <span>{listing.created_at}</span>
+                        <span>{new Date(listing.created_at).toLocaleDateString("mn-MN")}</span>
                       </div>
 
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1"><BedDouble className="h-3 w-3" /> {listing.rooms} өрөө</span>
                         <span className="flex items-center gap-1"><Bath className="h-3 w-3" /> {listing.bathrooms}</span>
-                        <span className="flex items-center gap-1"><Square className="h-3 w-3" /> {listing.area}м²</span>
-                        <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {listing.views}</span>
+                        <span className="flex items-center gap-1"><Square className="h-3 w-3" /> {listing.area_sqm}м²</span>
+                        <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {listing.view_count}</span>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/40">
                       <span className="font-bold text-primary text-sm">
-                        {listing.price.toLocaleString()}₮
+                        {listing.price_per_day.toLocaleString()}₮
                         <span className="text-xs font-normal text-muted-foreground">/өдөр</span>
                       </span>
-
                       <div className="flex items-center gap-1.5">
-                        <button className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
+                        <button
+                          onClick={() => handleDelete(listing.id)}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                        >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -148,7 +211,13 @@ export default function MyListingsPage() {
         )}
       </div>
 
-      <RegisterModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <ListingRegisterModal
+        open={addOpen}
+        onClose={() => {
+          setAddOpen(false)
+          fetchMyListings() // Зар нэмсний дараа жагсаалт шинэчлэх
+        }}
+      />
     </div>
   )
 }

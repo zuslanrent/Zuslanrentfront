@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 export type AuthUser = {
-  id: string
-  name: string
+  id:    string
+  name:  string
   phone: string
-  token: string
+  token: string  // ← байсан, зөв
 }
 
 interface Props {
@@ -106,29 +106,28 @@ export function AuthModal({ open, onClose, onSuccess, defaultTab = "login" }: Pr
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleLogin = async () => {
-    if (!phone || !password) { setError("Утас болон нууц үгээ оруулна уу"); return }
-    setLoading(true); setError("")
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phone.replace(/\D/g, ""), password }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || "Нэвтрэх амжилтгүй"); return }
+  // handleLogin дотор — onSuccess дуудах хэсэг
+const handleLogin = async () => {
+  if (!phone || !password) { setError("Утас болон нууц үгээ оруулна уу"); return }
+  setLoading(true); setError("")
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: phone.replace(/\D/g, ""), password }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setError(data.error || "Нэвтрэх амжилтгүй"); return }
 
-      localStorage.setItem("auth_user",    JSON.stringify(data.user))
-      localStorage.setItem("auth_token",   data.token)
-      localStorage.setItem("auth_expires", data.expires_at)
-      onSuccess(data.user)
-      onClose()
-    } catch {
-      setError("Сервертэй холбогдож чадсангүй")
-    } finally {
-      setLoading(false)
-    }
+    // ← localStorage хасаж, token-г user дотор дамжуулна
+    onSuccess({ ...data.user, token: data.token })
+    onClose()
+  } catch {
+    setError("Сервертэй холбогдож чадсангүй")
+  } finally {
+    setLoading(false)
   }
+}
 
   const handleRegister = async () => {
     if (!phone || !name)  { setError("Нэр болон утасны дугаараа оруулна уу"); return }

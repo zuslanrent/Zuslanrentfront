@@ -4,26 +4,29 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import type { AuthUser } from "./auth-modal"
 
 interface AuthContextType {
-  user: AuthUser | null
-  login:  (user: AuthUser) => void
-  logout: () => void
+  user:       AuthUser | null
+  token:      string | null
+  login:      (user: AuthUser) => void  // ← зөвхөн нэг параметр
+  logout:     () => void
   isLoggedIn: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null, login: () => {}, logout: () => {}, isLoggedIn: false,
+  user: null, token: null, login: () => {}, logout: () => {}, isLoggedIn: false,
 })
 
 export const useAuth = () => useContext(AuthContext)
 
-const TIMEOUT_MS = 5 * 60 * 1000 // 5 минут
+const TIMEOUT_MS = 5 * 60 * 1000
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const timerRef        = useRef<NodeJS.Timeout | null>(null)
+  const [user,  setUser]  = useState<AuthUser | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const logout = useCallback(() => {
     setUser(null)
+    setToken(null)
     localStorage.removeItem("auth_user")
     localStorage.removeItem("auth_token")
     localStorage.removeItem("auth_expires")
@@ -35,20 +38,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     timerRef.current = setTimeout(logout, TIMEOUT_MS)
   }, [logout])
 
-  const login = useCallback((u: AuthUser) => {
-    setUser(u)
-    resetTimer()
-  }, [resetTimer])
+ const login = useCallback((u: AuthUser) => {
+  const tkn = u.token
+  setUser(u)
+  setToken(tkn)
+  localStorage.setItem("auth_user",    JSON.stringify(u))
+  localStorage.setItem("auth_token",   tkn)
+  localStorage.setItem("auth_expires", new Date(Date.now() + TIMEOUT_MS).toISOString())
+  resetTimer()
+}, [resetTimer])
 
   // Хуудас дахин ачаалахад session шалгах
   useEffect(() => {
-    const stored    = localStorage.getItem("auth_user")
-    const expires   = localStorage.getItem("auth_expires")
+    const stored  = localStorage.getItem("auth_user")
+    const tkn     = localStorage.getItem("auth_token")
+    const expires = localStorage.getItem("auth_expires")
 
-    if (stored && expires) {
+    if (stored && tkn && expires) {
       const isValid = new Date(expires) > new Date()
       if (isValid) {
         setUser(JSON.parse(stored))
+        setToken(tkn)
         resetTimer()
       } else {
         logout()
@@ -56,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [logout, resetTimer])
 
-  // Хэрэглэгч идэвхтэй байвал таймер reset
+  // Идэвхтэй байвал таймер reset
   useEffect(() => {
     if (!user) return
     const events = ["mousedown", "keydown", "scroll", "touchstart"]
@@ -65,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, resetTimer])
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoggedIn: !!user }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isLoggedIn: !!user }}>
       {children}
     </AuthContext.Provider>
   )

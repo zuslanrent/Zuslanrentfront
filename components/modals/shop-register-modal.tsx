@@ -20,9 +20,13 @@ const shopCategories = [
 
 type Step = 1 | 2 | 3 | 4
 
-interface Props { onClose: () => void }
+interface Props {
+  open:    boolean  // ← нэмэх
+  onClose: () => void
+}
 
-export function ShopRegisterModal({ onClose }: Props) {
+export function ShopRegisterModal({ open, onClose }: Props) {
+  if (!open) return null
   const [step, setStep]           = useState<Step>(1)
   const [submitted, setSubmitted] = useState(false)
   const [images, setImages]       = useState<UploadedImage[]>([])

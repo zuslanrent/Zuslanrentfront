@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Store, House, Hotel, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RegisterModal } from "@/components/modals/register-modal";
-import { AuthModal } from "@/components/auth/auth-modal";
+import { AuthModal, AuthUser } from "@/components/auth/auth-modal";
 import { useAuth } from "@/components/auth/auth-provider";
+import { ShopRegisterModal } from "./modals/shop-register-modal";
 
 export function HeroSection() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -38,11 +38,11 @@ export function HeroSection() {
   };
 
   // Нэвтэрсний дараа register modal нээнэ
-  const handleAuthSuccess = (user: any) => {
-    login(user);
-    setAuthOpen(false);
-    setRegisterOpen(true);
-  };
+  const handleAuthSuccess = (user: AuthUser) => {
+  login(user)        // ← нэг параметр
+  setAuthOpen(false)
+  setRegisterOpen(true)
+}
 
   return (
     <section className="relative min-h-[90vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
@@ -146,7 +146,7 @@ export function HeroSection() {
       />
 
       {/* Нэвтэрсэн → RegisterModal */}
-      <RegisterModal
+      <ShopRegisterModal
         open={registerOpen}
         onClose={() => setRegisterOpen(false)}
       />

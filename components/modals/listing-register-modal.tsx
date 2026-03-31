@@ -1,29 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   X, Home, Tent, Building2, TreePine, Warehouse,
   Waves, Mountain, Phone, BedDouble, Bath, Square,
-  Tag, ChevronRight, CheckCircle2,
+  Tag, ChevronRight, CheckCircle2, Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ImageUploader, type UploadedImage } from "./image-uploader"
-
-const categories = [
-  { id: "apartment", icon: Home,      label: "Орон сууц"   },
-  { id: "camp",      icon: Tent,      label: "Зуслан"      },
-  { id: "house",     icon: Building2, label: "Байшин"      },
-  { id: "forest",    icon: TreePine,  label: "Ойн бүс"     },
-  { id: "lake",      icon: Waves,     label: "Нуурын эрэг" },
-  { id: "mountain",  icon: Mountain,  label: "Уулын бүс"   },
-  { id: "warehouse", icon: Warehouse, label: "Агуулах"     },
-]
-
-const locations = [
-  "Богдхан","Тэрэлж","Сэргэлэн","Улиастай",
-  "Налайх","Горхи","Хустай","Мандал","Баянчандмань",
-]
+import { useAuth } from "@/components/auth/auth-provider"
 
 const amenitiesList = [
   "WiFi","Барбекю","Зогсоол","Саун","Цэцэрлэг",
@@ -32,20 +18,63 @@ const amenitiesList = [
 
 type Step = 1 | 2 | 3 | 4 | 5
 
-interface Props { onClose: () => void }
+interface Props {
+  open:    boolean
+  onClose: () => void
+}
 
-export function ListingRegisterModal({ onClose }: Props) {
-  const [step, setStep]           = useState<Step>(1)
+interface Location { id: number; name: string; slug: string }
+
+const staticCategories = [
+  { id:1, slug:"apartment", icon:Home,      label:"Орон сууц"   },
+  { id:2, slug:"camp",      icon:Tent,      label:"Зуслан"      },
+  { id:3, slug:"house",     icon:Building2, label:"Байшин"      },
+  { id:4, slug:"forest",    icon:TreePine,  label:"Ойн бүс"     },
+  { id:5, slug:"lake",      icon:Waves,     label:"Нуурын эрэг" },
+  { id:6, slug:"mountain",  icon:Mountain,  label:"Уулын бүс"   },
+  { id:7, slug:"warehouse", icon:Warehouse, label:"Агуулах"     },
+]
+
+export function ListingRegisterModal({ open, onClose }: Props) {
+  const { token } = useAuth()
+
+  // ── State — hook-уудыг conditional return-с ӨМНӨ ──
+  const [step,      setStep]      = useState<Step>(1)
   const [submitted, setSubmitted] = useState(false)
-  const [images, setImages]       = useState<UploadedImage[]>([])
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState("")
+  const [images,    setImages]    = useState<UploadedImage[]>([])
+  const [locations, setLocations] = useState<Location[]>([])
   const [form, setForm] = useState({
-    category: "", title: "", location: "", address: "",
-    price: "", rooms: "1", bathrooms: "1", area: "", max_guests: "2",
-    amenities: [] as string[], description: "",
-    phone: "", name: "", tags: "",
+    category_id:   "",
+    location_id:   "",
+    title:         "",
+    address:       "",
+    price_per_day: "",
+    rooms:         "1",
+    bathrooms:     "1",
+    area_sqm:      "",
+    max_guests:    "2",
+    amenities:     [] as string[],
+    description:   "",
+    phone:         "",
+    tags:          "",
   })
 
+  useEffect(() => {
+    if (!open) return
+    const API = process.env.NEXT_PUBLIC_API_URL
+    fetch(`${API}/api/locations`)
+      .then(r => r.json())
+      .then(data => setLocations(Array.isArray(data) ? data : data.data || []))
+      .catch(console.error)
+  }, [open])
+
+  // ── conditional return — hook-уудын ДАРАА ──
+  if (!open) return null
+
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
+
   const toggleAmenity = (a: string) =>
     setForm(p => ({
       ...p,
@@ -56,17 +85,64 @@ export function ListingRegisterModal({ onClose }: Props) {
 
   const canNext = () => {
     if (step === 1) return images.length > 0
-    if (step === 2) return form.category && form.title && form.location
-    if (step === 3) return form.price && form.area
+    if (step === 2) return !!form.category_id && !!form.title && !!form.location_id
+    if (step === 3) return !!form.price_per_day && !!form.area_sqm
     if (step === 4) return form.description.length >= 20
-    if (step === 5) return form.phone && form.name
+    if (step === 5) return !!form.phone
     return false
+  }
+
+  const handleSubmit = async () => {
+    console.log("Token:", token)
+    setLoading(true)
+    setError("")
+    try {
+      const API = process.env.NEXT_PUBLIC_API_URL
+      const imagesPayload = images.map((img, i) => ({
+        url:        img.url,
+        is_cover:   i === 0,
+        sort_order: i,
+      }))
+
+      const res = await fetch(`${API}/api/listings`, {
+        method:  "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          category_id:   parseInt(form.category_id),
+          location_id:   parseInt(form.location_id),
+          title:         form.title,
+          description:   form.description,
+          address:       form.address,
+          price_per_day: parseInt(form.price_per_day),
+          area_sqm:      parseInt(form.area_sqm),
+          rooms:         parseInt(form.rooms),
+          bathrooms:     parseInt(form.bathrooms),
+          max_guests:    parseInt(form.max_guests),
+          amenities:     form.amenities,
+          phone:         form.phone,
+          tags:          form.tags.split(",").map(t => t.trim()).filter(Boolean),
+          images:        imagesPayload,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Алдаа гарлаа")
+      setSubmitted(true)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const steps = ["Зурагнууд", "Мэдээлэл", "Үнэ & Хэмжээ", "Тохижилт", "Холбоо"]
 
   return (
     <div className="relative w-full max-w-2xl max-h-[88vh] flex flex-col bg-background rounded-2xl shadow-2xl border border-border/60">
+
       {/* Header */}
       <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border/50 shrink-0">
         <div>
@@ -119,70 +195,69 @@ export function ListingRegisterModal({ onClose }: Props) {
             <p className="text-sm text-muted-foreground max-w-xs">
               Таны зар шалгагдаж, удахгүй нийтлэгдэх болно.
             </p>
-            <div className="mt-5 p-4 rounded-xl bg-muted/50 border border-border/60 text-left w-full max-w-xs space-y-1">
-              <div className="flex items-center gap-2">
-                <img src={images[0]?.preview} alt="" className="w-12 h-12 rounded-lg object-cover" />
-                <div>
-                  <p className="font-semibold text-sm">{form.title}</p>
-                  <p className="text-xs text-muted-foreground">{form.location} • {parseInt(form.price||"0").toLocaleString()}₮/өдөр</p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">{images.length} зураг оруулсан</p>
-            </div>
             <Button className="mt-5" onClick={onClose}>Хаах</Button>
           </div>
         )}
 
         {/* STEP 1 — Зурагнууд */}
         {!submitted && step === 1 && (
-          <ImageUploader
-            images={images}
-            onChange={setImages}
-            maxImages={8}
-          />
+          <ImageUploader images={images} onChange={setImages} maxImages={8} />
         )}
 
-        {/* STEP 2 — Үндсэн мэдээлэл */}
+        {/* STEP 2 — Мэдээлэл */}
         {!submitted && step === 2 && (
           <div className="space-y-5">
             <div>
-              <label className="text-sm font-semibold mb-2 block">Байрны төрөл <span className="text-destructive">*</span></label>
+              <label className="text-sm font-semibold mb-2 block">
+                Байрны төрөл <span className="text-destructive">*</span>
+              </label>
               <div className="grid grid-cols-4 gap-2">
-                {categories.map(({ id, icon: Icon, label }) => (
-                  <button key={id} onClick={() => set("category", id)}
+                {staticCategories.map(({ id, slug, icon: Icon, label }) => (
+                  <button key={id} onClick={() => set("category_id", String(id))}
                     className={cn(
                       "flex flex-col items-center gap-1.5 p-2.5 rounded-xl border text-xs font-medium transition-all",
-                      form.category === id
+                      form.category_id === String(id)
                         ? "border-primary bg-primary/10 text-primary"
-                        : "border-border/60 hover:border-primary/40 text-muted-foreground hover:text-foreground"
+                        : "border-border/60 hover:border-primary/40 text-muted-foreground"
                     )}>
                     <Icon className="h-4 w-4" />{label}
                   </button>
                 ))}
               </div>
             </div>
+
             <div>
-              <label className="text-sm font-semibold mb-1.5 block">Гарчиг <span className="text-destructive">*</span></label>
+              <label className="text-sm font-semibold mb-1.5 block">
+                Гарчиг <span className="text-destructive">*</span>
+              </label>
               <input value={form.title} onChange={e => set("title", e.target.value)}
                 placeholder="Богдхан орчмын тухлагтай зуслан"
                 className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
             </div>
+
             <div>
-              <label className="text-sm font-semibold mb-1.5 block">Байршил <span className="text-destructive">*</span></label>
-              <div className="flex flex-wrap gap-1.5">
-                {locations.map(loc => (
-                  <button key={loc} onClick={() => set("location", loc)}
-                    className={cn(
-                      "text-xs px-3 py-1 rounded-full border transition-all",
-                      form.location === loc
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "border-border/60 text-muted-foreground hover:border-primary/40"
-                    )}>
-                    {form.location === loc && "✓ "}{loc}
-                  </button>
-                ))}
-              </div>
+              <label className="text-sm font-semibold mb-1.5 block">
+                Байршил <span className="text-destructive">*</span>
+              </label>
+              {locations.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Байршил ачааллаж байна...</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {locations.map(loc => (
+                    <button key={loc.id} onClick={() => set("location_id", String(loc.id))}
+                      className={cn(
+                        "text-xs px-3 py-1 rounded-full border transition-all",
+                        form.location_id === String(loc.id)
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-border/60 text-muted-foreground hover:border-primary/40"
+                      )}>
+                      {form.location_id === String(loc.id) && "✓ "}{loc.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
             <div>
               <label className="text-sm font-semibold mb-1.5 block">Дэлгэрэнгүй хаяг</label>
               <input value={form.address} onChange={e => set("address", e.target.value)}
@@ -196,45 +271,61 @@ export function ListingRegisterModal({ onClose }: Props) {
         {!submitted && step === 3 && (
           <div className="space-y-5">
             <div>
-              <label className="text-sm font-semibold mb-1.5 block">Өдрийн үнэ (₮) <span className="text-destructive">*</span></label>
+              <label className="text-sm font-semibold mb-1.5 block">
+                Өдрийн үнэ (₮) <span className="text-destructive">*</span>
+              </label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₮</span>
-                <input type="number" value={form.price} onChange={e => set("price", e.target.value)}
+                <input type="number" value={form.price_per_day} onChange={e => set("price_per_day", e.target.value)}
                   placeholder="150000"
                   className="w-full pl-8 pr-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
               </div>
-              {form.price && <p className="text-xs text-muted-foreground mt-1">= {parseInt(form.price).toLocaleString()}₮ / өдөр</p>}
+              {form.price_per_day && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  = {parseInt(form.price_per_day).toLocaleString()}₮/өдөр
+                </p>
+              )}
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block"><BedDouble className="h-3.5 w-3.5" /> Өрөө</label>
+                <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block">
+                  <BedDouble className="h-3.5 w-3.5" /> Өрөө
+                </label>
                 <div className="flex gap-1">
                   {["1","2","3","4","5+"].map(n => (
                     <button key={n} onClick={() => set("rooms", n)}
                       className={cn("flex-1 py-2 rounded-lg text-xs font-semibold border transition-all",
-                        form.rooms === n ? "bg-primary text-primary-foreground border-primary" : "border-border/60 text-muted-foreground hover:text-foreground")}>
+                        form.rooms === n ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border/60 text-muted-foreground")}>
                       {n}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block"><Bath className="h-3.5 w-3.5" /> Ариун цэвэр</label>
+                <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block">
+                  <Bath className="h-3.5 w-3.5" /> Ариун цэвэр
+                </label>
                 <div className="flex gap-1">
                   {["1","2","3","4+"].map(n => (
                     <button key={n} onClick={() => set("bathrooms", n)}
                       className={cn("flex-1 py-2 rounded-lg text-xs font-semibold border transition-all",
-                        form.bathrooms === n ? "bg-primary text-primary-foreground border-primary" : "border-border/60 text-muted-foreground hover:text-foreground")}>
+                        form.bathrooms === n ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border/60 text-muted-foreground")}>
                       {n}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block"><Square className="h-3.5 w-3.5" /> Талбай (м²) <span className="text-destructive">*</span></label>
-                <input type="number" value={form.area} onChange={e => set("area", e.target.value)}
+                <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block">
+                  <Square className="h-3.5 w-3.5" /> Талбай (м²) <span className="text-destructive">*</span>
+                </label>
+                <input type="number" value={form.area_sqm} onChange={e => set("area_sqm", e.target.value)}
                   placeholder="120"
                   className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
               </div>
@@ -242,7 +333,9 @@ export function ListingRegisterModal({ onClose }: Props) {
                 <label className="text-sm font-semibold mb-1.5 block">Хамгийн их хүн</label>
                 <select value={form.max_guests} onChange={e => set("max_guests", e.target.value)}
                   className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none cursor-pointer">
-                  {["2","4","6","8","10","12","15+"].map(n => <option key={n} value={n}>{n} хүн</option>)}
+                  {["2","4","6","8","10","12","15+"].map(n => (
+                    <option key={n} value={n}>{n} хүн</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -268,6 +361,7 @@ export function ListingRegisterModal({ onClose }: Props) {
                 ))}
               </div>
             </div>
+
             <div>
               <label className="text-sm font-semibold mb-1.5 block">
                 Тайлбар <span className="text-destructive">*</span>
@@ -277,13 +371,17 @@ export function ListingRegisterModal({ onClose }: Props) {
                 rows={4} placeholder="Байрны онцлог, ойролцоох газрууд..."
                 className="w-full px-4 py-3 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all resize-none" />
               <div className="flex justify-end mt-1">
-                <span className={cn("text-xs", form.description.length < 20 ? "text-muted-foreground" : "text-emerald-600 dark:text-emerald-400")}>
+                <span className={cn("text-xs",
+                  form.description.length < 20 ? "text-muted-foreground" : "text-emerald-600 dark:text-emerald-400")}>
                   {form.description.length} / 20+
                 </span>
               </div>
             </div>
+
             <div>
-              <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block"><Tag className="h-3.5 w-3.5" /> Шошго</label>
+              <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block">
+                <Tag className="h-3.5 w-3.5" /> Шошго
+              </label>
               <input value={form.tags} onChange={e => set("tags", e.target.value)}
                 placeholder="Барбекю, Нуурын эрэг, Ойн орчим..."
                 className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
@@ -295,13 +393,9 @@ export function ListingRegisterModal({ onClose }: Props) {
         {!submitted && step === 5 && (
           <div className="space-y-5">
             <div>
-              <label className="text-sm font-semibold mb-1.5 block">Нэр <span className="text-destructive">*</span></label>
-              <input value={form.name} onChange={e => set("name", e.target.value)}
-                placeholder="Таны нэр"
-                className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all" />
-            </div>
-            <div>
-              <label className="text-sm font-semibold mb-1.5 block">Утас <span className="text-destructive">*</span></label>
+              <label className="text-sm font-semibold mb-1.5 block">
+                Утас <span className="text-destructive">*</span>
+              </label>
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 <input value={form.phone} onChange={e => set("phone", e.target.value)}
@@ -313,7 +407,6 @@ export function ListingRegisterModal({ onClose }: Props) {
             {/* Summary */}
             <div className="p-4 rounded-xl bg-muted/40 border border-border/50 space-y-2">
               <p className="text-xs font-semibold text-muted-foreground mb-2">Нийтлэх мэдээлэл</p>
-              {/* Image preview */}
               <div className="flex gap-1.5 mb-3">
                 {images.slice(0, 5).map((img, i) => (
                   <div key={img.id} className={cn(
@@ -330,11 +423,11 @@ export function ListingRegisterModal({ onClose }: Props) {
                 )}
               </div>
               {[
-                ["Гарчиг",   form.title],
-                ["Байршил",  form.location],
-                ["Үнэ",      `${parseInt(form.price||"0").toLocaleString()}₮/өдөр`],
-                ["Талбай",   `${form.area}м² • ${form.rooms} өрөө`],
-                ["Зураг",    `${images.length} ширхэг`],
+                ["Гарчиг",  form.title],
+                ["Байршил", locations.find(l => String(l.id) === form.location_id)?.name || ""],
+                ["Үнэ",     `${parseInt(form.price_per_day||"0").toLocaleString()}₮/өдөр`],
+                ["Талбай",  `${form.area_sqm}м² • ${form.rooms} өрөө`],
+                ["Зураг",   `${images.length} ширхэг`],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{k}</span>
@@ -342,6 +435,12 @@ export function ListingRegisterModal({ onClose }: Props) {
                 </div>
               ))}
             </div>
+
+            {error && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+                {error}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -354,12 +453,13 @@ export function ListingRegisterModal({ onClose }: Props) {
             {step === 1 ? "Цуцлах" : "← Буцах"}
           </button>
           <Button
-            onClick={() => step < 5 ? setStep(s => (s+1) as Step) : setSubmitted(true)}
-            disabled={!canNext()}
+            onClick={() => step < 5 ? setStep(s => (s+1) as Step) : handleSubmit()}
+            disabled={!canNext() || loading}
             className="gap-2 px-6"
           >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {step === 5
-              ? <><CheckCircle2 className="h-4 w-4" /> Нийтлэх</>
+              ? loading ? "Илгээж байна..." : <><CheckCircle2 className="h-4 w-4" /> Нийтлэх</>
               : <>Үргэлжлүүлэх <ChevronRight className="h-4 w-4" /></>
             }
           </Button>
