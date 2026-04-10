@@ -31,9 +31,13 @@ const durations = [
 
 type Step = 1 | 2 | 3 | 4
 
-interface Props { onClose: () => void }
+interface Props {
+  open:    boolean
+  onClose: () => void
+}
 
-export function ServiceRegisterModal({ onClose }: Props) {
+export function ServiceRegisterModal({ open, onClose }: Props) {
+
   const [step, setStep]           = useState<Step>(1)
   const [submitted, setSubmitted] = useState(false)
   const [images, setImages]       = useState<UploadedImage[]>([])
@@ -60,9 +64,9 @@ export function ServiceRegisterModal({ onClose }: Props) {
     if (step === 4) return !!form.provider_name && !!form.phone
     return false
   }
-
+  
   const steps = ["Зурагнууд", "Үйлчилгээ", "Үнэ & Онцлог", "Холбоо барих"]
-
+  if (!open) return null
   return (
     <div className="relative w-full max-w-2xl max-h-[88vh] flex flex-col bg-background rounded-2xl shadow-2xl border border-border/60">
       {/* Header */}
