@@ -216,7 +216,10 @@ export function ListingRegisterModal({ open, onClose }: Props) {
               allow_smoking: form.allow_smoking === "true",
               allow_children: form.allow_children === "true",
               allow_party: form.allow_party === "true",
+              
             },
+            listing_type: listingType,        // ← нэмэх
+              package_days: packageDays,
           }),
         },
       );
@@ -991,8 +994,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                   )}
                 </div>
               )}
-            </div>
-            {/* STEP 6 — Багц */}
+               {/* STEP 6 — Багц */}
             {!submitted && step === 6 && (
               <div className="space-y-6">
                 <div>
@@ -1240,6 +1242,8 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                 </div>
               </div>
             )}
+            </div>
+           
 
             {/* Footer */}
             {!submitted && (

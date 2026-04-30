@@ -171,3 +171,13 @@
 .animate-float {
   animation: float 6s ease-in-out infinite;
 }
+
+@keyframes shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes sweep {
+  0%   { transform: translateX(-200%) skewX(-12deg); }
+  100% { transform: translateX(200%) skewX(-12deg); }
+}
