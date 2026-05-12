@@ -72,7 +72,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
   const [listingType, setListingType] = useState<"standard" | "vip">(
     "standard",
   );
-  const [packageDays, setPackageDays] = useState<7 | 14 | 30>(7);
+  const [packageDays, setPackageDays] = useState<24 | 7 | 14 | 30>(7);
   const [form, setForm] = useState({
     category_id: "",
     location_id: "",
@@ -216,10 +216,9 @@ export function ListingRegisterModal({ open, onClose }: Props) {
               allow_smoking: form.allow_smoking === "true",
               allow_children: form.allow_children === "true",
               allow_party: form.allow_party === "true",
-              
             },
-            listing_type: listingType,        // ← нэмэх
-              package_days: packageDays,
+            listing_type: listingType, // ← нэмэх
+            package_days: packageDays,
           }),
         },
       );
@@ -351,7 +350,8 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                 <div className="space-y-5">
                   <div>
                     <label className="text-sm font-semibold mb-2 block">
-                      Байрны төрөл <span className="text-destructive">*</span>
+                      Үл хөдлөхийн төрөл{" "}
+                      <span className="text-destructive">*</span>
                     </label>
                     <div className="grid grid-cols-4 gap-2">
                       {staticCategories.map(({ id, icon: Icon, label }) => (
@@ -589,7 +589,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                         <div className="flex items-center gap-2 mb-2">
                           <div className="w-2 h-2 rounded-full bg-blue-500" />
                           <span className="text-xs font-semibold">
-                            Баталгааны мөнгө (Deposit)
+                            Барьцаа мөнгө (Deposit)
                           </span>
                           <span className="text-[10px] text-muted-foreground">
                             (заавал биш)
@@ -683,11 +683,13 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                         onChange={(e) => set("max_guests", e.target.value)}
                         className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none cursor-pointer"
                       >
-                        {["2", "4", "6", "8", "10", "12", "15+"].map((n) => (
-                          <option key={n} value={n}>
-                            {n} хүн
-                          </option>
-                        ))}
+                        {["2", "4", "6", "8", "10", "12", "15", "20+"].map(
+                          (n) => (
+                            <option key={n} value={n}>
+                              {n} хүн
+                            </option>
+                          ),
+                        )}
                       </select>
                     </div>
                   </div>
@@ -821,11 +823,6 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                           key: "allow_smoking",
                           emoji: "🚬",
                           label: "Тамхи татахыг зөвшөөрнө",
-                        },
-                        {
-                          key: "allow_children",
-                          emoji: "👶",
-                          label: "Хүүхэд зөвшөөрнө",
                         },
                         {
                           key: "allow_party",
@@ -994,256 +991,292 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                   )}
                 </div>
               )}
-               {/* STEP 6 — Багц */}
-            {!submitted && step === 6 && (
-              <div className="space-y-6">
-                <div>
-                  <label className="text-sm font-semibold mb-3 block">
-                    Зарын төрөл
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setListingType("standard")}
-                      className={cn(
-                        "p-4 rounded-2xl border-2 text-left transition-all",
-                        listingType === "standard"
-                          ? "border-primary bg-primary/5"
-                          : "border-border/60 hover:border-primary/40",
-                      )}
-                    >
-                      <div className="text-sm font-bold mb-1">
-                        📋 Энгийн зар
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Хэвийн жагсаалтад
-                      </div>
-                      {listingType === "standard" && (
-                        <CheckCircle2 className="h-4 w-4 text-primary mt-2" />
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setListingType("vip")}
-                      className={cn(
-                        "p-4 rounded-2xl border-2 text-left transition-all",
-                        listingType === "vip"
-                          ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
-                          : "border-border/60 hover:border-amber-400/40",
-                      )}
-                    >
-                      <div
+              {/* STEP 6 — Багц */}
+              {!submitted && step === 6 && (
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-sm font-semibold mb-3 block">
+                      Зарын төрөл
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setListingType("standard")}
                         className={cn(
-                          "text-sm font-bold mb-1",
-                          listingType === "vip" ? "text-amber-700" : "",
+                          "p-4 rounded-2xl border-2 text-left transition-all",
+                          listingType === "standard"
+                            ? "border-primary bg-primary/5"
+                            : "border-border/60 hover:border-primary/40",
                         )}
                       >
-                        ⭐ VIP зар
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Хайлтад эхэнд гарна
-                      </div>
-                      {listingType === "vip" && (
-                        <CheckCircle2 className="h-4 w-4 text-amber-500 mt-2" />
-                      )}
-                    </button>
-                  </div>
+                        <div className="text-sm font-bold mb-1">
+                          📋 Энгийн зар
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Хэвийн жагсаалтад
+                        </div>
+                        {listingType === "standard" && (
+                          <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-lg border border-amber-200/60">
+                            ⚠️ 24 цагийн үнэгүй багцыг нэг хэрэглэгч **нэг
+                            удаа** ашиглах боломжтой.
+                          </p>
+                        )}
+                      </button>
 
-                  {listingType === "vip" && (
-                    <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60">
-                      <p className="text-xs font-semibold text-amber-700 mb-1.5">
-                        ⭐ VIP давуу тал
-                      </p>
-                      <div className="grid grid-cols-2 gap-1">
-                        {[
-                          "Хайлтад эхэнд гарна",
-                          "⭐ VIP тэмдэглэгээ",
-                          "Онцгой хуудсанд",
-                          "2x илүү үзэгдэнэ",
-                        ].map((b) => (
-                          <div
-                            key={b}
-                            className="flex items-center gap-1 text-xs text-amber-700"
-                          >
-                            <CheckCircle2 className="h-3 w-3 shrink-0" /> {b}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-semibold mb-3 block">
-                    Байршуулах хугацаа
-                  </label>
-                  <div className="space-y-2">
-                    {(listingType === "standard"
-                      ? [
-                          {
-                            days: 7 as const,
-                            price: 5000,
-                            label: "7 хоног",
-                            popular: false,
-                          },
-                          {
-                            days: 14 as const,
-                            price: 8000,
-                            label: "14 хоног",
-                            popular: true,
-                          },
-                          {
-                            days: 30 as const,
-                            price: 15000,
-                            label: "30 хоног",
-                            popular: false,
-                          },
-                        ]
-                      : [
-                          {
-                            days: 7 as const,
-                            price: 15000,
-                            label: "VIP · 7 хоног",
-                            popular: false,
-                          },
-                          {
-                            days: 14 as const,
-                            price: 25000,
-                            label: "VIP · 14 хоног",
-                            popular: true,
-                          },
-                          {
-                            days: 30 as const,
-                            price: 45000,
-                            label: "VIP · 30 хоног",
-                            popular: false,
-                          },
-                        ]
-                    ).map((pkg) => {
-                      const selected = packageDays === pkg.days;
-                      const isVip = listingType === "vip";
-                      return (
-                        <button
-                          key={pkg.days}
-                          onClick={() => setPackageDays(pkg.days)}
+                      <button
+                        onClick={() => setListingType("vip")}
+                        className={cn(
+                          "p-4 rounded-2xl border-2 text-left transition-all",
+                          listingType === "vip"
+                            ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
+                            : "border-border/60 hover:border-amber-400/40",
+                        )}
+                      >
+                        <div
                           className={cn(
-                            "w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all",
-                            selected
-                              ? isVip
-                                ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
-                                : "border-primary bg-primary/5"
-                              : "border-border/60 hover:border-primary/30",
+                            "text-sm font-bold mb-1",
+                            listingType === "vip" ? "text-amber-700" : "",
                           )}
                         >
-                          <div className="flex items-center gap-3">
+                          ⭐ VIP зар
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Хайлтад эхэнд гарна
+                        </div>
+                        {listingType === "vip" && (
+                          <CheckCircle2 className="h-4 w-4 text-amber-500 mt-2" />
+                        )}
+                      </button>
+                    </div>
+
+                    {listingType === "vip" && (
+                      <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60">
+                        <p className="text-xs font-semibold text-amber-700 mb-1.5">
+                          ⭐ VIP давуу тал
+                        </p>
+                        <div className="grid grid-cols-2 gap-1">
+                          {[
+                            "Хайлтад эхэнд гарна",
+                            "⭐ VIP тэмдэглэгээ",
+                            "Онцгой хуудсанд",
+                            "2x илүү үзэгдэнэ",
+                          ].map((b) => (
                             <div
-                              className={cn(
-                                "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                                selected
-                                  ? isVip
-                                    ? "border-amber-500 bg-amber-500"
-                                    : "border-primary bg-primary"
-                                  : "border-border",
-                              )}
+                              key={b}
+                              className="flex items-center gap-1 text-xs text-amber-700"
                             >
-                              {selected && (
-                                <div className="w-2 h-2 rounded-full bg-white" />
-                              )}
+                              <CheckCircle2 className="h-3 w-3 shrink-0" /> {b}
                             </div>
-                            <div className="text-left">
-                              <div
-                                className={cn(
-                                  "text-sm font-semibold",
-                                  selected
-                                    ? isVip
-                                      ? "text-amber-700"
-                                      : "text-primary"
-                                    : "",
-                                )}
-                              >
-                                {pkg.label}
-                                {pkg.popular && (
-                                  <span
-                                    className={cn(
-                                      "ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold",
-                                      isVip
-                                        ? "bg-amber-100 text-amber-700"
-                                        : "bg-primary/10 text-primary",
-                                    )}
-                                  >
-                                    АЛДАРТАЙ
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {pkg.days} хоног байршина
-                              </div>
-                            </div>
-                          </div>
-                          <div
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold mb-3 block">
+                      Байршуулах хугацаа
+                    </label>
+                    <div className="space-y-2">
+                      {(listingType === "standard"
+                        ? [
+                            {
+                              days: 24 as const,
+                              price: 0,
+                              label: "24 цаг",
+                              popular: false,
+                              free: true, // ← шинэ flag
+                            },
+                            {
+                              days: 7 as const,
+                              price: 5000,
+                              label: "7 хоног",
+                              popular: false,
+                            },
+                            {
+                              days: 14 as const,
+                              price: 8000,
+                              label: "14 хоног",
+                              popular: true,
+                            },
+                            {
+                              days: 30 as const,
+                              price: 15000,
+                              label: "30 хоног",
+                              popular: false,
+                            },
+                          ]
+                        : [
+                            {
+                              days: 7 as const,
+                              price: 15000,
+                              label: "VIP · 7 хоног",
+                              popular: false,
+                            },
+                            {
+                              days: 14 as const,
+                              price: 25000,
+                              label: "VIP · 14 хоног",
+                              popular: true,
+                            },
+                            {
+                              days: 30 as const,
+                              price: 45000,
+                              label: "VIP · 30 хоног",
+                              popular: false,
+                            },
+                          ]
+                      ).map((pkg) => {
+                        const selected = packageDays === pkg.days;
+                        const isVip = listingType === "vip";
+                        return (
+                          <button
+                            key={pkg.days}
+                            onClick={() => setPackageDays(pkg.days)}
                             className={cn(
-                              "text-base font-bold font-mono",
+                              "w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all",
                               selected
                                 ? isVip
-                                  ? "text-amber-600"
-                                  : "text-primary"
-                                : "",
+                                  ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
+                                  : "border-primary bg-primary/5"
+                                : "border-border/60 hover:border-primary/30",
                             )}
                           >
-                            {pkg.price.toLocaleString()}₮
-                          </div>
-                        </button>
-                      );
-                    })}
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={cn(
+                                  "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                                  selected
+                                    ? isVip
+                                      ? "border-amber-500 bg-amber-500"
+                                      : "border-primary bg-primary"
+                                    : "border-border",
+                                )}
+                              >
+                                {selected && (
+                                  <div className="w-2 h-2 rounded-full bg-white" />
+                                )}
+                              </div>
+                              <div className="text-left">
+                                <div
+                                  className={cn(
+                                    "text-sm font-semibold",
+                                    selected
+                                      ? isVip
+                                        ? "text-amber-700"
+                                        : "text-primary"
+                                      : "",
+                                  )}
+                                >
+                                  {pkg.label}
+                                  {pkg.popular && (
+                                    <span
+                                      className={cn(
+                                        "ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+                                        isVip
+                                          ? "bg-amber-100 text-amber-700"
+                                          : "bg-primary/10 text-primary",
+                                      )}
+                                    >
+                                      АЛДАРТАЙ
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {pkg.days === 24
+                                    ? "24 цаг байршина"
+                                    : `${pkg.days} хоног байршина`}
+                                </div>
+                              </div>
+                            </div>
+                            <div
+                              className={cn(
+                                "text-base font-bold font-mono",
+                                pkg.price === 0
+                                  ? "text-emerald-600"
+                                  : selected
+                                    ? isVip
+                                      ? "text-amber-600"
+                                      : "text-primary"
+                                    : "",
+                              )}
+                            >
+                              {pkg.price === 0
+                                ? "Үнэгүй"
+                                : `${pkg.price.toLocaleString()}₮`}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
 
-                {/* Дүн */}
-                <div
-                  className={cn(
-                    "p-4 rounded-2xl border",
-                    listingType === "vip"
-                      ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200/60"
-                      : "bg-muted/40 border-border/50",
-                  )}
-                >
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-muted-foreground">Сонгосон</span>
-                    <span className="font-semibold">
-                      {listingType === "vip" ? "⭐ VIP · " : ""}
-                      {packageDays} хоног
-                    </span>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-muted-foreground text-sm">
-                      Төлбөр
-                    </span>
-                    <span
-                      className={cn(
-                        "text-xl font-bold font-mono",
-                        listingType === "vip"
-                          ? "text-amber-600"
-                          : "text-primary",
-                      )}
-                    >
-                      {listingType === "standard"
-                        ? [5000, 8000, 15000][
-                            [7, 14, 30].indexOf(packageDays)
-                          ].toLocaleString()
-                        : [15000, 25000, 45000][
-                            [7, 14, 30].indexOf(packageDays)
-                          ].toLocaleString()}
-                      ₮
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    💡 Зөвшөөрөгдсөний дараа {packageDays} хоног байршиж
-                    автоматаар идэвхгүй болно.
-                  </p>
+                  {/* Дүн */}
+                  {(() => {
+                    const standardPackages: Record<number, number> = {
+                      24: 0,
+                      7: 5000,
+                      14: 8000,
+                      30: 15000,
+                    };
+                    const vipPackages: Record<number, number> = {
+                      7: 15000,
+                      14: 25000,
+                      30: 45000,
+                    };
+                    const price =
+                      listingType === "standard"
+                        ? (standardPackages[packageDays] ?? 0)
+                        : (vipPackages[packageDays] ?? 0);
+                    const durationLabel =
+                      packageDays === 24 ? "24 цаг" : `${packageDays} хоног`;
+
+                    return (
+                      <div
+                        className={cn(
+                          "p-4 rounded-2xl border",
+                          listingType === "vip"
+                            ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200/60"
+                            : "bg-muted/40 border-border/50",
+                        )}
+                      >
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-muted-foreground">
+                            Сонгосон
+                          </span>
+                          <span className="font-semibold">
+                            {listingType === "vip" ? "⭐ VIP · " : ""}
+                            {durationLabel}
+                          </span>
+                        </div>
+                        <div className="flex justify-between mb-2">
+                          <span className="text-muted-foreground text-sm">
+                            Төлбөр
+                          </span>
+                          <span
+                            className={cn(
+                              "text-xl font-bold font-mono",
+                              price === 0
+                                ? "text-emerald-600"
+                                : listingType === "vip"
+                                  ? "text-amber-600"
+                                  : "text-primary",
+                            )}
+                          >
+                            {price === 0
+                              ? "Үнэгүй"
+                              : `${price.toLocaleString()}₮`}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          💡 Зөвшөөрөгдсөний дараа {durationLabel} байршиж
+                          автоматаар идэвхгүй болно.
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
-              </div>
-            )}
+              )}
             </div>
-           
 
             {/* Footer */}
             {!submitted && (
