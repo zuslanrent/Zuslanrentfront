@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ListingRegisterModal } from "@/components/modals/listing-register-modal";
+import { FreeLimitPopover } from "@/components/modals/free-limit-popover";
 
 interface Listing {
   id: string;
@@ -135,6 +136,7 @@ function EditModal({
   const [planDays, setPlanDays] = useState<24 | 7 | 14 | 30>(7);
   const [planLoading, setPlanLoading] = useState(false);
   const [planSaved, setPlanSaved] = useState(false);
+  const [showFreeLimitPopover, setShowFreeLimitPopover] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -224,7 +226,15 @@ function EditModal({
         },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Алдаа гарлаа");
+      if (!res.ok) {
+        if (res.status === 403 && data.error?.includes("24 цагийн үнэгүй")) {
+          setShowFreeLimitPopover(true);
+          setPlanLoading(false);
+          return;
+        }
+        throw new Error(data.error || "Алдаа гарлаа");
+      }
+      setPlanSaved(true);
       onSaved();
       onClose();
     } catch (err: any) {
@@ -894,6 +904,13 @@ function EditModal({
           )}
         </div>
       </div>
+      <FreeLimitPopover
+        open={showFreeLimitPopover}
+        onClose={() => {
+          setShowFreeLimitPopover(false);
+          setPlanDays(7);
+        }}
+      />
     </>
   );
 }
@@ -913,29 +930,29 @@ export default function MyListingsPage() {
   }, [isLoggedIn, router]);
 
   const fetchMyListings = async () => {
-  if (!token) return;
-  setLoading(true);
-  setError("");
-  try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/listings/my`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Алдаа гарлаа");
-    const newListings: Listing[] = data.data || data;
-    setListings(newListings);
+    if (!token) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/listings/my`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Алдаа гарлаа");
+      const newListings: Listing[] = data.data || data;
+      setListings(newListings);
 
-    // ✨ EditModal-д ирэх listing-ийг шинэчлэх — хамгийн чухал хэсэг
-    setEditListing((prev) =>
-      prev ? (newListings.find((l) => l.id === prev.id) ?? prev) : null,
-    );
-  } catch (err: any) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+      // ✨ EditModal-д ирэх listing-ийг шинэчлэх — хамгийн чухал хэсэг
+      setEditListing((prev) =>
+        prev ? (newListings.find((l) => l.id === prev.id) ?? prev) : null,
+      );
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
   useEffect(() => {
     if (isLoggedIn && token) fetchMyListings();
   }, [isLoggedIn, token]);

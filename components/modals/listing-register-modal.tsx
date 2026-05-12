@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ImageUploader, type UploadedImage } from "./image-uploader";
 import { useAuth } from "@/components/auth/auth-provider";
+import { FreeLimitPopover } from "@/components/modals/free-limit-popover";
 
 const amenitiesList = [
   "WiFi",
@@ -98,6 +99,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
     allow_children: "true",
     allow_party: "false",
   });
+  const [showFreeLimitPopover, setShowFreeLimitPopover] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -223,7 +225,15 @@ export function ListingRegisterModal({ open, onClose }: Props) {
         },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Алдаа гарлаа");
+      if (!res.ok) {
+        // 24 цагийн үнэгүй багцын алдаа гарвал popover
+        if (res.status === 403 && data.error?.includes("24 цагийн үнэгүй")) {
+          setShowFreeLimitPopover(true);
+          setLoading(false);
+          return;
+        }
+        throw new Error(data.error || "Алдаа гарлаа");
+      }
       setSubmitted(true);
     } catch (err: any) {
       setError(err.message);
@@ -1316,6 +1326,14 @@ export function ListingRegisterModal({ open, onClose }: Props) {
           </div>
         </div>
       </div>
+      <FreeLimitPopover
+        open={showFreeLimitPopover}
+        onClose={() => {
+          setShowFreeLimitPopover(false);
+          setStep(6); // Багц сонгох step руу буцах
+          setPackageDays(7); // Үнэтэй default-руу шилжүүлэх
+        }}
+      />
     </>
   );
 }
