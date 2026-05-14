@@ -53,11 +53,11 @@ export type Listing = {
   avg_rating: string | number;
   review_count: number;
   view_count: number;
-  status: string;
+  // status: string;
   created_at: string;
-  plan?: string;
-  plan_price?: number;
-  expires_at?: string;
+  // plan?: string;
+  // plan_price?: number;
+  // expires_at?: string;
 };
 
 const categories = [
