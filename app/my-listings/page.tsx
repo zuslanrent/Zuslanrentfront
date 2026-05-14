@@ -1038,9 +1038,9 @@ export default function MyListingsPage() {
                     </div>
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/40">
                       <span className="font-bold text-primary text-sm">
-                        {listing.price_per_day.toLocaleString()}₮
-                        <span className="text-xs font-normal text-muted-foreground">/өдөр</span>
-                      </span>
+  {Number(listing.price_per_day).toLocaleString()}₮
+  <span className="text-xs font-normal text-muted-foreground">/өдөр</span>
+</span>
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => setEditListing(listing)}
