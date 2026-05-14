@@ -34,7 +34,7 @@ export function MobileMenu() {
       </SheetTrigger>
       <SheetContent side="right" className="w-[280px] sm:w-[350px]">
         <SheetHeader>
-          <SheetTitle>Зуслангийн</SheetTitle>
+          <SheetTitle>Зуслан</SheetTitle>
           <SheetDescription>Байр Түрээс</SheetDescription>
         </SheetHeader>
         <nav className="flex flex-col gap-1 mt-8">

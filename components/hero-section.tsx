@@ -6,11 +6,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthModal, AuthUser } from "@/components/auth/auth-modal";
 import { useAuth } from "@/components/auth/auth-provider";
-import { ShopRegisterModal } from "./modals/shop-register-modal";
 
 export function HeroSection() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [registerOpen, setRegisterOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
@@ -28,32 +26,32 @@ export function HeroSection() {
     router.push(query ? `/adds?search=${encodeURIComponent(query)}` : "/adds");
   };
 
+  // ── Зар оруулах товч ──
   const handleRegisterClick = () => {
     if (isLoggedIn) {
-      setRegisterOpen(true);
+      // Нэвтэрсэн → шууд my-listings руу үсрэх
+      router.push("/my-listings");
     } else {
+      // Нэвтрээгүй → auth modal
       setAuthOpen(true);
     }
   };
 
+  // ── Login амжилттай болсны дараа ──
   const handleAuthSuccess = (user: AuthUser) => {
     login(user);
     setAuthOpen(false);
-    setRegisterOpen(true);
+    router.push("/my-listings"); // ← my-listings руу үсрэх
   };
 
   return (
     <>
-      {/* ── Modals — section гадна, overflow-hidden нөлөөлөхгүй ── */}
+      {/* ── Auth modal ── */}
       <AuthModal
         open={authOpen}
         onClose={() => setAuthOpen(false)}
         onSuccess={handleAuthSuccess}
         defaultTab="login"
-      />
-      <ShopRegisterModal
-        open={registerOpen}
-        onClose={() => setRegisterOpen(false)}
       />
 
       <section className="relative min-h-[90vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-hidden">
@@ -100,7 +98,7 @@ export function HeroSection() {
 
         <div className="container mx-auto text-center max-w-5xl relative z-10">
           <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-6 animate-fade-in-up text-balance">
-            Зуслангийн{" "}
+            Зуслан{" "}
             <span className="text-primary relative inline-block">
               Байр
               <svg
@@ -163,10 +161,7 @@ export function HeroSection() {
               </a>
             </Button>
 
-            <div
-              className="relative group cursor-pointer"
-              onClick={handleRegisterClick}
-            >
+            <div className="relative group cursor-pointer" onClick={handleRegisterClick}>
               <div className="relative px-8 py-2.5 border-2 border-pink-500 text-black dark:text-white font-bold text-lg rounded-lg transform transition-all duration-300 group-hover:translate-y-1 group-hover:translate-x-1 shadow-[6px_6px_10px_rgba(0,0,0,0.6),-6px_-6px_10px_rgba(255,255,255,0.1)] group-hover:shadow-[8px_8px_15px_rgba(0,0,0,0.8),-8px_-8px_15px_rgba(255,255,255,0.15)]">
                 Зар оруулах
               </div>
