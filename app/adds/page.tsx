@@ -16,7 +16,6 @@ import {
   BedDouble,
   Bath,
   Square,
-  Phone,
   Heart,
   X,
   ArrowUpDown,
@@ -30,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ListingModal } from "@/components/listing-modal";
+import { PhoneReveal } from "@/components/phone-reveal";
 
 export type Listing = {
   id: string;
@@ -273,15 +273,7 @@ function ListingCard({
               ))
             )}
           </div>
-          {item.phone && (
-            <a
-              href={`tel:${item.phone}`}
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
-            >
-              <Phone className="h-3 w-3" /> {item.phone}
-            </a>
-          )}
+          <PhoneReveal phone={item.phone} />
         </div>
       </CardContent>
     </Card>

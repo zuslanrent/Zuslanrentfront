@@ -7,7 +7,7 @@ export function Logo({ className = "" }: { className?: string }) {
         <span className="text-2xl font-bold text-primary">&gt;</span>
         {/* Brand text */}
         <span className="text-xl font-semibold tracking-tight ml-1">
-          Camp Rent
+          Rent
         </span>
       </div>
     </div>

@@ -18,24 +18,18 @@ import {
   ChevronRight,
   CheckCircle2,
   Loader2,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ImageUploader, type UploadedImage } from "./image-uploader";
 import { useAuth } from "@/components/auth/auth-provider";
 import { FreeLimitPopover } from "@/components/modals/free-limit-popover";
+import { PaymentInfoPopover } from "@/components/modals/payment-info-popover";
 
 const amenitiesList = [
-  "WiFi",
-  "Барбекю",
-  "Зогсоол",
-  "Саун",
-  "Цэцэрлэг",
-  "Тоглоомын талбай",
-  "Загасчлал",
-  "Хөргөгч",
-  "Телевиз",
-  "Угаалга",
+  "WiFi", "Барбекю", "Зогсоол", "Саун", "Цэцэрлэг",
+  "Тоглоомын талбай", "Загасчлал", "Хөргөгч", "Телевиз", "Угаалга",
 ];
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
@@ -61,8 +55,12 @@ const staticCategories = [
   { id: 7, slug: "warehouse", icon: Warehouse, label: "Агуулах" },
 ];
 
+// Багцын үнэ (frontend талын reference)
+const STANDARD_PRICES: Record<number, number> = { 24: 0, 7: 5000, 14: 8000, 30: 15000 };
+const VIP_PRICES: Record<number, number> = { 7: 15000, 14: 25000, 30: 45000 };
+
 export function ListingRegisterModal({ open, onClose }: Props) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
   const [submitted, setSubmitted] = useState(false);
@@ -70,9 +68,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
   const [error, setError] = useState("");
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [listingType, setListingType] = useState<"standard" | "vip">(
-    "standard",
-  );
+  const [listingType, setListingType] = useState<"standard" | "vip">("standard");
   const [packageDays, setPackageDays] = useState<24 | 7 | 14 | 30>(7);
   const [form, setForm] = useState({
     category_id: "",
@@ -100,7 +96,10 @@ export function ListingRegisterModal({ open, onClose }: Props) {
     allow_party: "false",
   });
   const [showFreeLimitPopover, setShowFreeLimitPopover] = useState(false);
+  const [showPaymentPopover, setShowPaymentPopover] = useState(false);
+  const [paidAmount, setPaidAmount] = useState(0);
 
+  // Locations ачааллах
   useEffect(() => {
     if (!open) return;
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/locations`)
@@ -111,6 +110,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
       .catch(console.error);
   }, [open]);
 
+  // Modal нээгдэх үед reset
   useEffect(() => {
     if (!open) return;
     setStep(1);
@@ -130,7 +130,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
       max_guests: "2",
       amenities: [],
       description: "",
-      phone: "",
+      phone: user?.phone || "",  // ← бүртгэлийн утсаар автоматаар бөглөх
       tags: "",
       price_per_week: "",
       price_per_month: "",
@@ -143,11 +143,24 @@ export function ListingRegisterModal({ open, onClose }: Props) {
       allow_children: "true",
       allow_party: "false",
     });
-  }, [open]);
+  }, [open, user]);
+
+  // User-ийн утас ачаалагдсан үед бөглөх
+  useEffect(() => {
+    if (user?.phone) {
+      setForm((p) => ({ ...p, phone: user.phone }));
+    }
+  }, [user]);
 
   if (!open) return null;
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+  // Currency формат (only digits + thousand separator)
+  const setMoney = (k: string, v: string) => {
+    const raw = v.replace(/[^0-9]/g, "");
+    setForm((p) => ({ ...p, [k]: raw }));
+  };
 
   const toggleAmenity = (a: string) =>
     setForm((p) => ({
@@ -159,8 +172,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
 
   const canNext = () => {
     if (step === 1) return images.length > 0;
-    if (step === 2)
-      return !!form.category_id && !!form.title && !!form.location_id;
+    if (step === 2) return !!form.category_id && !!form.title && !!form.location_id;
     if (step === 3) return !!form.price_per_day && !!form.area_sqm;
     if (step === 4) return form.description.length >= 20;
     if (step === 5) return !!form.phone;
@@ -203,12 +215,8 @@ export function ListingRegisterModal({ open, onClose }: Props) {
               .map((t) => t.trim())
               .filter(Boolean),
             images: imagesPayload,
-            price_per_week: form.price_per_week
-              ? parseInt(form.price_per_week)
-              : null,
-            price_per_month: form.price_per_month
-              ? parseInt(form.price_per_month)
-              : null,
+            price_per_week: form.price_per_week ? parseInt(form.price_per_week) : null,
+            price_per_month: form.price_per_month ? parseInt(form.price_per_month) : null,
             deposit: form.deposit ? parseInt(form.deposit) : null,
             min_nights: parseInt(form.min_nights),
             checkin_time: form.checkin_time,
@@ -219,7 +227,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
               allow_children: form.allow_children === "true",
               allow_party: form.allow_party === "true",
             },
-            listing_type: listingType, // ← нэмэх
+            listing_type: listingType,
             package_days: packageDays,
           }),
         },
@@ -234,7 +242,17 @@ export function ListingRegisterModal({ open, onClose }: Props) {
         }
         throw new Error(data.error || "Алдаа гарлаа");
       }
+
+      // Submit амжилттай — үнэтэй бол төлбөрийн popover
+      const finalPrice = listingType === "vip"
+        ? (VIP_PRICES[packageDays] ?? 0)
+        : (STANDARD_PRICES[packageDays] ?? 0);
+
       setSubmitted(true);
+      if (finalPrice > 0) {
+        setPaidAmount(finalPrice);
+        setShowPaymentPopover(true);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -242,14 +260,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
     }
   };
 
-  const steps = [
-    "Зурагнууд",
-    "Мэдээлэл",
-    "Үнэ & Хэмжээ",
-    "Тохижилт",
-    "Холбоо",
-    "Багц",
-  ];
+  const steps = ["Зурагнууд", "Мэдээлэл", "Үнэ & Хэмжээ", "Тохижилт", "Холбоо", "Багц"];
 
   return (
     <>
@@ -271,9 +282,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
               <div>
                 <h2 className="text-lg font-bold">🏠 Байр бүртгэх</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {submitted
-                    ? "Амжилттай!"
-                    : `${step}-р алхам / ${steps.length}`}
+                  {submitted ? "Амжилттай!" : `${step}-р алхам / ${steps.length}`}
                 </p>
               </div>
               <button
@@ -338,7 +347,9 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                     Зар амжилттай илгээгдлээ!
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-xs">
-                    Таны зар шалгагдаж, удахгүй нийтлэгдэх болно.
+                    {paidAmount > 0
+                      ? "Төлбөр төлөгдсөний дараа зар автоматаар идэвхжинэ."
+                      : "Таны зар шалгагдаж, удахгүй нийтлэгдэх болно."}
                   </p>
                   <Button className="mt-5" onClick={onClose}>
                     Хаах
@@ -346,7 +357,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                 </div>
               )}
 
-              {/* STEP 1 */}
+              {/* STEP 1 — Зурагнууд */}
               {!submitted && step === 1 && (
                 <ImageUploader
                   images={images}
@@ -355,13 +366,12 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                 />
               )}
 
-              {/* STEP 2 */}
+              {/* STEP 2 — Мэдээлэл */}
               {!submitted && step === 2 && (
                 <div className="space-y-5">
                   <div>
                     <label className="text-sm font-semibold mb-2 block">
-                      Үл хөдлөхийн төрөл{" "}
-                      <span className="text-destructive">*</span>
+                      Үл хөдлөхийн төрөл <span className="text-destructive">*</span>
                     </label>
                     <div className="grid grid-cols-4 gap-2">
                       {staticCategories.map(({ id, icon: Icon, label }) => (
@@ -399,9 +409,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                       Байршил <span className="text-destructive">*</span>
                     </label>
                     {locations.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        Байршил ачааллаж байна...
-                      </p>
+                      <p className="text-xs text-muted-foreground">Байршил ачааллаж байна...</p>
                     ) : (
                       <div className="flex flex-wrap gap-1.5">
                         {locations.map((loc) => (
@@ -437,41 +445,36 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                 </div>
               )}
 
+              {/* STEP 3 — Үнэ & Хэмжээ */}
               {!submitted && step === 3 && (
                 <div className="space-y-5">
-                  {/* Үнийн хэлбэрүүд */}
                   <div>
                     <label className="text-sm font-semibold mb-3 block">
                       Үнийн мэдээлэл <span className="text-destructive">*</span>
                     </label>
                     <div className="grid grid-cols-1 gap-3">
+
                       {/* Өдрийн үнэ */}
                       <div className="p-4 rounded-xl bg-muted/40 border border-border/60">
                         <div className="flex items-center gap-2 mb-2">
                           <div className="w-2 h-2 rounded-full bg-primary" />
-                          <span className="text-xs font-semibold">
-                            Өдрийн үнэ
-                          </span>
+                          <span className="text-xs font-semibold">Өдрийн үнэ</span>
                           <span className="text-destructive text-xs">*</span>
                         </div>
                         <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                            ₮
-                          </span>
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₮</span>
                           <input
-                            type="number"
-                            value={form.price_per_day}
-                            onChange={(e) =>
-                              set("price_per_day", e.target.value)
-                            }
+                            type="text"
+                            inputMode="numeric"
+                            value={form.price_per_day ? parseInt(form.price_per_day).toLocaleString() : ""}
+                            onChange={(e) => setMoney("price_per_day", e.target.value)}
                             placeholder="150,000"
                             className="w-full pl-8 pr-4 py-2.5 text-sm bg-background border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
                           />
                         </div>
                         {form.price_per_day && (
                           <p className="text-xs text-muted-foreground mt-1.5">
-                            = {parseInt(form.price_per_day).toLocaleString()}₮ /
-                            нэг өдөр
+                            = {parseInt(form.price_per_day).toLocaleString()}₮ / нэг өдөр
                           </p>
                         )}
                       </div>
@@ -481,38 +484,25 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                            <span className="text-xs font-semibold">
-                              7 хоногийн үнэ
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              (заавал биш)
-                            </span>
+                            <span className="text-xs font-semibold">7 хоногийн үнэ</span>
+                            <span className="text-[10px] text-muted-foreground">(заавал биш)</span>
                           </div>
                           {form.price_per_day && form.price_per_week && (
                             <span className="text-[10px] text-emerald-600 font-semibold">
-                              {Math.round(
-                                (1 -
-                                  parseInt(form.price_per_week) /
-                                    (parseInt(form.price_per_day) * 7)) *
-                                  100,
-                              )}
-                              % хямд
+                              {Math.round((1 - parseInt(form.price_per_week) / (parseInt(form.price_per_day) * 7)) * 100)}% хямд
                             </span>
                           )}
                         </div>
                         <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                            ₮
-                          </span>
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₮</span>
                           <input
-                            type="number"
-                            value={form.price_per_week}
-                            onChange={(e) =>
-                              set("price_per_week", e.target.value)
-                            }
+                            type="text"
+                            inputMode="numeric"
+                            value={form.price_per_week ? parseInt(form.price_per_week).toLocaleString() : ""}
+                            onChange={(e) => setMoney("price_per_week", e.target.value)}
                             placeholder={
                               form.price_per_day
-                                ? String(parseInt(form.price_per_day) * 6)
+                                ? (parseInt(form.price_per_day) * 6).toLocaleString()
                                 : "900,000"
                             }
                             className="w-full pl-8 pr-4 py-2.5 text-sm bg-background border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
@@ -520,15 +510,10 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                         </div>
                         {form.price_per_week && (
                           <p className="text-xs text-muted-foreground mt-1.5">
-                            = {parseInt(form.price_per_week).toLocaleString()}₮
-                            / 7 хоног
+                            = {parseInt(form.price_per_week).toLocaleString()}₮ / 7 хоног
                             {form.price_per_day && (
                               <span className="ml-2 text-emerald-600">
-                                (
-                                {Math.round(
-                                  parseInt(form.price_per_week) / 7,
-                                ).toLocaleString()}
-                                ₮/өдөр)
+                                ({Math.round(parseInt(form.price_per_week) / 7).toLocaleString()}₮/өдөр)
                               </span>
                             )}
                           </p>
@@ -540,38 +525,25 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-amber-500" />
-                            <span className="text-xs font-semibold">
-                              Сарын үнэ
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              (заавал биш)
-                            </span>
+                            <span className="text-xs font-semibold">Сарын үнэ</span>
+                            <span className="text-[10px] text-muted-foreground">(заавал биш)</span>
                           </div>
                           {form.price_per_day && form.price_per_month && (
                             <span className="text-[10px] text-emerald-600 font-semibold">
-                              {Math.round(
-                                (1 -
-                                  parseInt(form.price_per_month) /
-                                    (parseInt(form.price_per_day) * 30)) *
-                                  100,
-                              )}
-                              % хямд
+                              {Math.round((1 - parseInt(form.price_per_month) / (parseInt(form.price_per_day) * 30)) * 100)}% хямд
                             </span>
                           )}
                         </div>
                         <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                            ₮
-                          </span>
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₮</span>
                           <input
-                            type="number"
-                            value={form.price_per_month}
-                            onChange={(e) =>
-                              set("price_per_month", e.target.value)
-                            }
+                            type="text"
+                            inputMode="numeric"
+                            value={form.price_per_month ? parseInt(form.price_per_month).toLocaleString() : ""}
+                            onChange={(e) => setMoney("price_per_month", e.target.value)}
                             placeholder={
                               form.price_per_day
-                                ? String(parseInt(form.price_per_day) * 20)
+                                ? (parseInt(form.price_per_day) * 20).toLocaleString()
                                 : "3,000,000"
                             }
                             className="w-full pl-8 pr-4 py-2.5 text-sm bg-background border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
@@ -579,40 +551,30 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                         </div>
                         {form.price_per_month && (
                           <p className="text-xs text-muted-foreground mt-1.5">
-                            = {parseInt(form.price_per_month).toLocaleString()}₮
-                            / сар
+                            = {parseInt(form.price_per_month).toLocaleString()}₮ / сар
                             {form.price_per_day && (
                               <span className="ml-2 text-emerald-600">
-                                (
-                                {Math.round(
-                                  parseInt(form.price_per_month) / 30,
-                                ).toLocaleString()}
-                                ₮/өдөр)
+                                ({Math.round(parseInt(form.price_per_month) / 30).toLocaleString()}₮/өдөр)
                               </span>
                             )}
                           </p>
                         )}
                       </div>
 
-                      {/* Баталгааны мөнгө */}
+                      {/* Барьцаа мөнгө */}
                       <div className="p-4 rounded-xl bg-muted/40 border border-border/60">
                         <div className="flex items-center gap-2 mb-2">
                           <div className="w-2 h-2 rounded-full bg-blue-500" />
-                          <span className="text-xs font-semibold">
-                            Барьцаа мөнгө (Deposit)
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            (заавал биш)
-                          </span>
+                          <span className="text-xs font-semibold">Барьцаа мөнгө (Deposit)</span>
+                          <span className="text-[10px] text-muted-foreground">(заавал биш)</span>
                         </div>
                         <div className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                            ₮
-                          </span>
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₮</span>
                           <input
-                            type="number"
-                            value={form.deposit}
-                            onChange={(e) => set("deposit", e.target.value)}
+                            type="text"
+                            inputMode="numeric"
+                            value={form.deposit ? parseInt(form.deposit).toLocaleString() : ""}
+                            onChange={(e) => setMoney("deposit", e.target.value)}
                             placeholder="100,000"
                             className="w-full pl-8 pr-4 py-2.5 text-sm bg-background border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
                           />
@@ -624,7 +586,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                     </div>
                   </div>
 
-                  {/* Хэмжээ */}
+                  {/* Өрөө / Ариун цэвэр */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block">
@@ -673,8 +635,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-semibold mb-1.5 flex items-center gap-1 block">
-                        <Square className="h-3.5 w-3.5" /> Талбай (м²){" "}
-                        <span className="text-destructive">*</span>
+                        <Square className="h-3.5 w-3.5" /> Талбай (м²) <span className="text-destructive">*</span>
                       </label>
                       <input
                         type="number"
@@ -685,21 +646,15 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-semibold mb-1.5 block">
-                        Хамгийн их хүн
-                      </label>
+                      <label className="text-sm font-semibold mb-1.5 block">Хамгийн их хүн</label>
                       <select
                         value={form.max_guests}
                         onChange={(e) => set("max_guests", e.target.value)}
                         className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none cursor-pointer"
                       >
-                        {["2", "4", "6", "8", "10", "12", "15", "20+"].map(
-                          (n) => (
-                            <option key={n} value={n}>
-                              {n} хүн
-                            </option>
-                          ),
-                        )}
+                        {["2", "4", "6", "8", "10", "12", "15", "20+"].map((n) => (
+                          <option key={n} value={n}>{n} хүн</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -734,53 +689,33 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                     </div>
                   </div>
 
-                  {/* Check-in/out цаг */}
+                  {/* Орох / Гарах цаг */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-semibold mb-1.5 block">
-                        Check-in цаг
+                        Орох боломжтой цаг
                       </label>
                       <select
                         value={form.checkin_time}
                         onChange={(e) => set("checkin_time", e.target.value)}
                         className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none cursor-pointer"
                       >
-                        {[
-                          "10:00",
-                          "11:00",
-                          "12:00",
-                          "13:00",
-                          "14:00",
-                          "15:00",
-                          "16:00",
-                        ].map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
+                        {["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"].map((t) => (
+                          <option key={t} value={t}>{t}</option>
                         ))}
                       </select>
                     </div>
                     <div>
                       <label className="text-sm font-semibold mb-1.5 block">
-                        Check-out цаг
+                        Гарах цаг
                       </label>
                       <select
                         value={form.checkout_time}
                         onChange={(e) => set("checkout_time", e.target.value)}
                         className="w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none cursor-pointer"
                       >
-                        {[
-                          "10:00",
-                          "11:00",
-                          "12:00",
-                          "13:00",
-                          "14:00",
-                          "15:00",
-                          "16:00",
-                        ].map((t) => (
-                          <option key={t} value={t}>
-                            {t}
-                          </option>
+                        {["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"].map((t) => (
+                          <option key={t} value={t}>{t}</option>
                         ))}
                       </select>
                     </div>
@@ -791,11 +726,8 @@ export function ListingRegisterModal({ open, onClose }: Props) {
               {/* STEP 4 — Тохижилт & Дүрэм */}
               {!submitted && step === 4 && (
                 <div className="space-y-5">
-                  {/* Тохижилт */}
                   <div>
-                    <label className="text-sm font-semibold mb-2 block">
-                      Тохижилт
-                    </label>
+                    <label className="text-sm font-semibold mb-2 block">Тохижилт</label>
                     <div className="flex flex-wrap gap-2">
                       {amenitiesList.map((a) => (
                         <button
@@ -808,47 +740,25 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                               : "border-border/60 text-muted-foreground hover:border-primary/40",
                           )}
                         >
-                          {form.amenities.includes(a) && (
-                            <CheckCircle2 className="h-3 w-3" />
-                          )}
+                          {form.amenities.includes(a) && <CheckCircle2 className="h-3 w-3" />}
                           {a}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Дүрэм */}
                   <div>
-                    <label className="text-sm font-semibold mb-2 block">
-                      Байрны дүрэм
-                    </label>
+                    <label className="text-sm font-semibold mb-2 block">Байрны дүрэм</label>
                     <div className="space-y-2">
                       {[
-                        {
-                          key: "allow_pets",
-                          emoji: "🐾",
-                          label: "Амьтан зөвшөөрнө",
-                        },
-                        {
-                          key: "allow_smoking",
-                          emoji: "🚬",
-                          label: "Тамхи татахыг зөвшөөрнө",
-                        },
-                        {
-                          key: "allow_party",
-                          emoji: "🎉",
-                          label: "Найр зохиохыг зөвшөөрнө",
-                        },
+                        { key: "allow_pets", emoji: "🐾", label: "Амьтан зөвшөөрнө" },
+                        { key: "allow_smoking", emoji: "🚬", label: "Тамхи татахыг зөвшөөрнө" },
+                        { key: "allow_party", emoji: "🎉", label: "Найр зохиохыг зөвшөөрнө" },
                       ].map(({ key, emoji, label }) => (
                         <div
                           key={key}
                           onClick={() =>
-                            set(
-                              key,
-                              form[key as keyof typeof form] === "true"
-                                ? "false"
-                                : "true",
-                            )
+                            set(key, form[key as keyof typeof form] === "true" ? "false" : "true")
                           }
                           className={cn(
                             "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
@@ -864,17 +774,13 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                           <div
                             className={cn(
                               "w-10 h-6 rounded-full transition-all relative",
-                              form[key as keyof typeof form] === "true"
-                                ? "bg-primary"
-                                : "bg-muted",
+                              form[key as keyof typeof form] === "true" ? "bg-primary" : "bg-muted",
                             )}
                           >
                             <div
                               className={cn(
                                 "absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all",
-                                form[key as keyof typeof form] === "true"
-                                  ? "left-5"
-                                  : "left-1",
+                                form[key as keyof typeof form] === "true" ? "left-5" : "left-1",
                               )}
                             />
                           </div>
@@ -883,13 +789,10 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                     </div>
                   </div>
 
-                  {/* Тайлбар */}
                   <div>
                     <label className="text-sm font-semibold mb-1.5 block">
                       Тайлбар <span className="text-destructive">*</span>
-                      <span className="text-muted-foreground font-normal ml-2 text-xs">
-                        (20+ тэмдэгт)
-                      </span>
+                      <span className="text-muted-foreground font-normal ml-2 text-xs">(20+ тэмдэгт)</span>
                     </label>
                     <textarea
                       value={form.description}
@@ -926,7 +829,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                 </div>
               )}
 
-              {/* STEP 5 */}
+              {/* STEP 5 — Холбоо */}
               {!submitted && step === 5 && (
                 <div className="space-y-5">
                   <div>
@@ -937,18 +840,20 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                       <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                       <input
                         value={form.phone}
-                        onChange={(e) => set("phone", e.target.value)}
-                        placeholder="9900-0000"
-                        className="w-full pl-11 pr-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                        readOnly
+                        disabled
+                        className="w-full pl-11 pr-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl outline-none cursor-not-allowed opacity-80"
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1.5">
+                      <Info className="h-3 w-3" />
+                      Таны бүртгэлийн дугаар. Өөрчлөх боломжгүй.
+                    </p>
                   </div>
 
                   {/* Summary */}
                   <div className="p-4 rounded-xl bg-muted/40 border border-border/50 space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground mb-2">
-                      Нийтлэх мэдээлэл
-                    </p>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">Нийтлэх мэдээлэл</p>
                     <div className="flex gap-1.5 mb-3">
                       {images.slice(0, 5).map((img, i) => (
                         <div
@@ -958,11 +863,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                             i === 0 ? "w-16 h-12" : "w-10 h-12",
                           )}
                         >
-                          <img
-                            src={img.preview}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={img.preview} alt="" className="w-full h-full object-cover" />
                         </div>
                       ))}
                       {images.length > 5 && (
@@ -973,23 +874,14 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                     </div>
                     {[
                       ["Гарчиг", form.title],
-                      [
-                        "Байршил",
-                        locations.find((l) => String(l.id) === form.location_id)
-                          ?.name || "",
-                      ],
-                      [
-                        "Үнэ",
-                        `${parseInt(form.price_per_day || "0").toLocaleString()}₮/өдөр`,
-                      ],
+                      ["Байршил", locations.find((l) => String(l.id) === form.location_id)?.name || ""],
+                      ["Үнэ", `${parseInt(form.price_per_day || "0").toLocaleString()}₮/өдөр`],
                       ["Талбай", `${form.area_sqm}м² • ${form.rooms} өрөө`],
                       ["Зураг", `${images.length} ширхэг`],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between text-sm">
                         <span className="text-muted-foreground">{k}</span>
-                        <span className="font-medium truncate ml-4 max-w-[180px]">
-                          {v}
-                        </span>
+                        <span className="font-medium truncate ml-4 max-w-[180px]">{v}</span>
                       </div>
                     ))}
                   </div>
@@ -1001,13 +893,12 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                   )}
                 </div>
               )}
+
               {/* STEP 6 — Багц */}
               {!submitted && step === 6 && (
                 <div className="space-y-6">
                   <div>
-                    <label className="text-sm font-semibold mb-3 block">
-                      Зарын төрөл
-                    </label>
+                    <label className="text-sm font-semibold mb-3 block">Зарын төрөл</label>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setListingType("standard")}
@@ -1018,22 +909,18 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                             : "border-border/60 hover:border-primary/40",
                         )}
                       >
-                        <div className="text-sm font-bold mb-1">
-                          📋 Энгийн зар
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Хэвийн жагсаалтад
-                        </div>
+                        <div className="text-sm font-bold mb-1">📋 Энгийн зар</div>
+                        <div className="text-xs text-muted-foreground">Хэвийн жагсаалтад</div>
                         {listingType === "standard" && (
-                          <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-lg border border-amber-200/60">
-                            ⚠️ 24 цагийн үнэгүй багцыг нэг хэрэглэгч **нэг
-                            удаа** ашиглах боломжтой.
-                          </p>
+                          <CheckCircle2 className="h-4 w-4 text-primary mt-2" />
                         )}
                       </button>
 
                       <button
-                        onClick={() => setListingType("vip")}
+                        onClick={() => {
+                          setListingType("vip");
+                          if (packageDays === 24) setPackageDays(7);
+                        }}
                         className={cn(
                           "p-4 rounded-2xl border-2 text-left transition-all",
                           listingType === "vip"
@@ -1041,28 +928,28 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                             : "border-border/60 hover:border-amber-400/40",
                         )}
                       >
-                        <div
-                          className={cn(
-                            "text-sm font-bold mb-1",
-                            listingType === "vip" ? "text-amber-700" : "",
-                          )}
-                        >
+                        <div className={cn("text-sm font-bold mb-1", listingType === "vip" ? "text-amber-700" : "")}>
                           ⭐ VIP зар
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          Хайлтад эхэнд гарна
-                        </div>
+                        <div className="text-xs text-muted-foreground">Хайлтад эхэнд гарна</div>
                         {listingType === "vip" && (
                           <CheckCircle2 className="h-4 w-4 text-amber-500 mt-2" />
                         )}
                       </button>
                     </div>
 
+                    {/* Standard үед — Үнэгүй багцын анхааруулга */}
+                    {listingType === "standard" && (
+                      <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60">
+                        <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                          ⚠️ <strong>24 цагийн үнэгүй багц</strong> нь нэг хэрэглэгчид зөвхөн <strong>нэг удаа</strong> олгогдох ба зар устгасан ч дахин ашиглах боломжгүй.
+                        </p>
+                      </div>
+                    )}
+
                     {listingType === "vip" && (
                       <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60">
-                        <p className="text-xs font-semibold text-amber-700 mb-1.5">
-                          ⭐ VIP давуу тал
-                        </p>
+                        <p className="text-xs font-semibold text-amber-700 mb-1.5">⭐ VIP давуу тал</p>
                         <div className="grid grid-cols-2 gap-1">
                           {[
                             "Хайлтад эхэнд гарна",
@@ -1070,10 +957,7 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                             "Онцгой хуудсанд",
                             "2x илүү үзэгдэнэ",
                           ].map((b) => (
-                            <div
-                              key={b}
-                              className="flex items-center gap-1 text-xs text-amber-700"
-                            >
+                            <div key={b} className="flex items-center gap-1 text-xs text-amber-700">
                               <CheckCircle2 className="h-3 w-3 shrink-0" /> {b}
                             </div>
                           ))}
@@ -1083,57 +967,19 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                   </div>
 
                   <div>
-                    <label className="text-sm font-semibold mb-3 block">
-                      Байршуулах хугацаа
-                    </label>
+                    <label className="text-sm font-semibold mb-3 block">Байршуулах хугацаа</label>
                     <div className="space-y-2">
                       {(listingType === "standard"
                         ? [
-                            {
-                              days: 24 as const,
-                              price: 0,
-                              label: "24 цаг",
-                              popular: false,
-                              free: true, // ← шинэ flag
-                            },
-                            {
-                              days: 7 as const,
-                              price: 5000,
-                              label: "7 хоног",
-                              popular: false,
-                            },
-                            {
-                              days: 14 as const,
-                              price: 8000,
-                              label: "14 хоног",
-                              popular: true,
-                            },
-                            {
-                              days: 30 as const,
-                              price: 15000,
-                              label: "30 хоног",
-                              popular: false,
-                            },
+                            { days: 24 as const, price: 0, label: "24 цаг", popular: false, free: true },
+                            { days: 7 as const, price: 5000, label: "7 хоног", popular: false },
+                            { days: 14 as const, price: 8000, label: "14 хоног", popular: true },
+                            { days: 30 as const, price: 15000, label: "30 хоног", popular: false },
                           ]
                         : [
-                            {
-                              days: 7 as const,
-                              price: 15000,
-                              label: "VIP · 7 хоног",
-                              popular: false,
-                            },
-                            {
-                              days: 14 as const,
-                              price: 25000,
-                              label: "VIP · 14 хоног",
-                              popular: true,
-                            },
-                            {
-                              days: 30 as const,
-                              price: 45000,
-                              label: "VIP · 30 хоног",
-                              popular: false,
-                            },
+                            { days: 7 as const, price: 15000, label: "VIP · 7 хоног", popular: false },
+                            { days: 14 as const, price: 25000, label: "VIP · 14 хоног", popular: true },
+                            { days: 30 as const, price: 45000, label: "VIP · 30 хоног", popular: false },
                           ]
                       ).map((pkg) => {
                         const selected = packageDays === pkg.days;
@@ -1162,19 +1008,13 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                                     : "border-border",
                                 )}
                               >
-                                {selected && (
-                                  <div className="w-2 h-2 rounded-full bg-white" />
-                                )}
+                                {selected && <div className="w-2 h-2 rounded-full bg-white" />}
                               </div>
                               <div className="text-left">
                                 <div
                                   className={cn(
                                     "text-sm font-semibold",
-                                    selected
-                                      ? isVip
-                                        ? "text-amber-700"
-                                        : "text-primary"
-                                      : "",
+                                    selected ? (isVip ? "text-amber-700" : "text-primary") : "",
                                   )}
                                 >
                                   {pkg.label}
@@ -1182,19 +1022,20 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                                     <span
                                       className={cn(
                                         "ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold",
-                                        isVip
-                                          ? "bg-amber-100 text-amber-700"
-                                          : "bg-primary/10 text-primary",
+                                        isVip ? "bg-amber-100 text-amber-700" : "bg-primary/10 text-primary",
                                       )}
                                     >
                                       АЛДАРТАЙ
                                     </span>
                                   )}
+                                  {"free" in pkg && pkg.free && (
+                                    <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700">
+                                      ҮНЭГҮЙ
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {pkg.days === 24
-                                    ? "24 цаг байршина"
-                                    : `${pkg.days} хоног байршина`}
+                                  {pkg.days === 24 ? "24 цаг байршина" : `${pkg.days} хоног байршина`}
                                 </div>
                               </div>
                             </div>
@@ -1204,15 +1045,11 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                                 pkg.price === 0
                                   ? "text-emerald-600"
                                   : selected
-                                    ? isVip
-                                      ? "text-amber-600"
-                                      : "text-primary"
+                                    ? isVip ? "text-amber-600" : "text-primary"
                                     : "",
                               )}
                             >
-                              {pkg.price === 0
-                                ? "Үнэгүй"
-                                : `${pkg.price.toLocaleString()}₮`}
+                              {pkg.price === 0 ? "Үнэгүй" : `${pkg.price.toLocaleString()}₮`}
                             </div>
                           </button>
                         );
@@ -1222,24 +1059,10 @@ export function ListingRegisterModal({ open, onClose }: Props) {
 
                   {/* Дүн */}
                   {(() => {
-                    const standardPackages: Record<number, number> = {
-                      24: 0,
-                      7: 5000,
-                      14: 8000,
-                      30: 15000,
-                    };
-                    const vipPackages: Record<number, number> = {
-                      7: 15000,
-                      14: 25000,
-                      30: 45000,
-                    };
-                    const price =
-                      listingType === "standard"
-                        ? (standardPackages[packageDays] ?? 0)
-                        : (vipPackages[packageDays] ?? 0);
-                    const durationLabel =
-                      packageDays === 24 ? "24 цаг" : `${packageDays} хоног`;
-
+                    const price = listingType === "standard"
+                      ? (STANDARD_PRICES[packageDays] ?? 0)
+                      : (VIP_PRICES[packageDays] ?? 0);
+                    const durationLabel = packageDays === 24 ? "24 цаг" : `${packageDays} хоног`;
                     return (
                       <div
                         className={cn(
@@ -1250,36 +1073,29 @@ export function ListingRegisterModal({ open, onClose }: Props) {
                         )}
                       >
                         <div className="flex justify-between text-sm mb-1">
-                          <span className="text-muted-foreground">
-                            Сонгосон
-                          </span>
+                          <span className="text-muted-foreground">Сонгосон</span>
                           <span className="font-semibold">
                             {listingType === "vip" ? "⭐ VIP · " : ""}
                             {durationLabel}
                           </span>
                         </div>
                         <div className="flex justify-between mb-2">
-                          <span className="text-muted-foreground text-sm">
-                            Төлбөр
-                          </span>
+                          <span className="text-muted-foreground text-sm">Төлбөр</span>
                           <span
                             className={cn(
                               "text-xl font-bold font-mono",
                               price === 0
                                 ? "text-emerald-600"
-                                : listingType === "vip"
-                                  ? "text-amber-600"
-                                  : "text-primary",
+                                : listingType === "vip" ? "text-amber-600" : "text-primary",
                             )}
                           >
-                            {price === 0
-                              ? "Үнэгүй"
-                              : `${price.toLocaleString()}₮`}
+                            {price === 0 ? "Үнэгүй" : `${price.toLocaleString()}₮`}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          💡 Зөвшөөрөгдсөний дараа {durationLabel} байршиж
-                          автоматаар идэвхгүй болно.
+                          {price === 0
+                            ? `💡 Зөвшөөрөгдсөний дараа ${durationLabel} байршиж автоматаар идэвхгүй болно.`
+                            : `💡 Төлбөр төлөгдсөний дараа зар идэвхжих ба ${durationLabel} байршина.`}
                         </p>
                       </div>
                     );
@@ -1292,33 +1108,25 @@ export function ListingRegisterModal({ open, onClose }: Props) {
             {!submitted && (
               <div className="flex items-center justify-between px-6 py-4 border-t border-border/50 shrink-0">
                 <button
-                  onClick={() =>
-                    step > 1 ? setStep((s) => (s - 1) as Step) : onClose()
-                  }
+                  onClick={() => (step > 1 ? setStep((s) => (s - 1) as Step) : onClose())}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {step === 1 ? "Цуцлах" : "← Буцах"}
                 </button>
                 <Button
-                  onClick={() =>
-                    step < 6 ? setStep((s) => (s + 1) as Step) : handleSubmit()
-                  }
+                  onClick={() => (step < 6 ? setStep((s) => (s + 1) as Step) : handleSubmit())}
                   disabled={!canNext() || loading}
                   className="gap-2 px-6"
                 >
                   {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                   {step === 6 ? (
-                    loading ? (
-                      "Илгээж байна..."
-                    ) : (
+                    loading ? "Илгээж байна..." : (
                       <>
                         <CheckCircle2 className="h-4 w-4" /> Нийтлэх
                       </>
                     )
                   ) : (
-                    <>
-                      Үргэлжлүүлэх <ChevronRight className="h-4 w-4" />
-                    </>
+                    <>Үргэлжлүүлэх <ChevronRight className="h-4 w-4" /></>
                   )}
                 </Button>
               </div>
@@ -1326,13 +1134,23 @@ export function ListingRegisterModal({ open, onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Popover-ууд */}
       <FreeLimitPopover
         open={showFreeLimitPopover}
         onClose={() => {
           setShowFreeLimitPopover(false);
-          setStep(6); // Багц сонгох step руу буцах
-          setPackageDays(7); // Үнэтэй default-руу шилжүүлэх
+          setStep(6);
+          setPackageDays(7);
         }}
+      />
+
+      <PaymentInfoPopover
+        open={showPaymentPopover}
+        onClose={() => setShowPaymentPopover(false)}
+        amount={paidAmount}
+        listingTitle={form.title}
+        phone={form.phone}
       />
     </>
   );

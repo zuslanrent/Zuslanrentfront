@@ -4,23 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
-  MapPin,
-  BedDouble,
-  Bath,
-  Square,
-  Plus,
-  Pencil,
-  Trash2,
-  Eye,
-  Clock,
-  Loader2,
-  X,
-  CheckCircle2,
-  Tag,
-  Phone,
-  FileText,
-  Star,
-  Calendar,
+  MapPin, BedDouble, Bath, Square, Plus, Pencil, Trash2,
+  Eye, Clock, Loader2, X, CheckCircle2, Tag, Phone, FileText,
+  Star, Calendar, AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -48,32 +34,19 @@ interface Listing {
 const statusConfig: Record<string, { label: string; color: string }> = {
   active: {
     label: "Идэвхтэй",
-    color:
-      "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400",
+    color: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400",
   },
   pending: {
     label: "Хүлээгдэж байна",
-    color:
-      "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400",
+    color: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400",
   },
   inactive: { label: "Идэвхгүй", color: "bg-muted text-muted-foreground" },
-  rejected: {
-    label: "Татгалзсан",
-    color: "bg-destructive/10 text-destructive",
-  },
+  rejected: { label: "Татгалзсан", color: "bg-destructive/10 text-destructive" },
 };
 
 const amenitiesList = [
-  "WiFi",
-  "Барбекю",
-  "Зогсоол",
-  "Саун",
-  "Цэцэрлэг",
-  "Тоглоомын талбай",
-  "Загасчлал",
-  "Хөргөгч",
-  "Телевиз",
-  "Угаалга",
+  "WiFi", "Барбекю", "Зогсоол", "Саун", "Цэцэрлэг",
+  "Тоглоомын талбай", "Загасчлал", "Хөргөгч", "Телевиз", "Угаалга",
 ];
 
 const PLAN_PRICES = {
@@ -83,22 +56,15 @@ const PLAN_PRICES = {
 
 function formatExpiry(expiresAt?: string) {
   if (!expiresAt) return null;
-  const days = Math.ceil(
-    (new Date(expiresAt).getTime() - Date.now()) / 86400000,
-  );
-  if (days <= 0)
-    return { text: "Хугацаа дууссан", urgent: true, expired: true };
-  if (days <= 3)
-    return { text: `${days} хоног үлдсэн`, urgent: true, expired: false };
+  const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
+  if (days <= 0) return { text: "Хугацаа дууссан", urgent: true, expired: true };
+  if (days <= 3) return { text: `${days} хоног үлдсэн`, urgent: true, expired: false };
   return { text: `${days} хоног үлдсэн`, urgent: false, expired: false };
 }
 
-// ── Edit Modal ────────────────────────────────────────
+// ═══════════════ EDIT MODAL ═══════════════
 function EditModal({
-  listing,
-  token,
-  onClose,
-  onSaved,
+  listing, token, onClose, onSaved,
 }: {
   listing: Listing;
   token: string | null;
@@ -123,13 +89,15 @@ function EditModal({
     checkout_time: "12:00",
     tags: "",
     amenities: [] as string[],
+    allow_pets: "false",
+    allow_smoking: "false",
+    allow_children: "true",
+    allow_party: "false",
   });
   const [fetchLoading, setFetchLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"basic" | "detail" | "rules" | "plan">(
-    "basic",
-  );
+  const [tab, setTab] = useState<"basic" | "detail" | "rules" | "plan">("basic");
   const [planType, setPlanType] = useState<"standard" | "vip">(
     listing.is_vip ? "vip" : "standard",
   );
@@ -138,38 +106,43 @@ function EditModal({
   const [planSaved, setPlanSaved] = useState(false);
   const [showFreeLimitPopover, setShowFreeLimitPopover] = useState(false);
 
+  // Listing өөрчлөгдөхөд UI rerender
+  useEffect(() => {
+    setPlanType(listing.is_vip ? "vip" : "standard");
+  }, [listing.is_vip]);
+
+  // Listing-н дэлгэрэнгүй мэдээллийг ачаалах
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/listings/${listing.id}`,
-        );
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/listings/${listing.id}`);
         const data = await res.json();
-        const amenities =
-          typeof data.amenities === "string"
-            ? JSON.parse(data.amenities)
-            : data.amenities || [];
+        const amenities = typeof data.amenities === "string"
+          ? JSON.parse(data.amenities)
+          : data.amenities || [];
+        const rules = typeof data.rules === "string"
+          ? JSON.parse(data.rules)
+          : data.rules || {};
         setForm((p) => ({
           ...p,
           description: data.description || "",
           address: data.address || "",
           phone: data.phone || "",
           max_guests: String(data.max_guests || 2),
-          price_per_week: data.price_per_week
-            ? String(data.price_per_week)
-            : "",
-          price_per_month: data.price_per_month
-            ? String(data.price_per_month)
-            : "",
+          price_per_week: data.price_per_week ? String(data.price_per_week) : "",
+          price_per_month: data.price_per_month ? String(data.price_per_month) : "",
           deposit: data.deposit ? String(data.deposit) : "",
           min_nights: String(data.min_nights || 1),
           checkin_time: data.checkin_time || "14:00",
           checkout_time: data.checkout_time || "12:00",
           tags: Array.isArray(data.tags) ? data.tags.join(", ") : "",
           amenities,
+          allow_pets: String(rules.allow_pets ?? false),
+          allow_smoking: String(rules.allow_smoking ?? false),
+          allow_children: String(rules.allow_children ?? true),
+          allow_party: String(rules.allow_party ?? false),
         }));
-      } catch {
-      } finally {
+      } catch {} finally {
         setFetchLoading(false);
       }
     };
@@ -185,6 +158,7 @@ function EditModal({
         : [...p.amenities, a],
     }));
 
+  // ── Үндсэн мэдээлэл хадгалах ──
   const handleSave = async () => {
     setLoading(true);
     setError("");
@@ -203,12 +177,8 @@ function EditModal({
             address: form.address,
             phone: form.phone,
             price_per_day: parseInt(form.price_per_day),
-            price_per_week: form.price_per_week
-              ? parseInt(form.price_per_week)
-              : null,
-            price_per_month: form.price_per_month
-              ? parseInt(form.price_per_month)
-              : null,
+            price_per_week: form.price_per_week ? parseInt(form.price_per_week) : null,
+            price_per_month: form.price_per_month ? parseInt(form.price_per_month) : null,
             deposit: form.deposit ? parseInt(form.deposit) : null,
             rooms: parseInt(form.rooms),
             bathrooms: parseInt(form.bathrooms),
@@ -218,23 +188,18 @@ function EditModal({
             checkin_time: form.checkin_time,
             checkout_time: form.checkout_time,
             amenities: form.amenities,
-            tags: form.tags
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean),
+            tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+            rules: {
+              allow_pets: form.allow_pets === "true",
+              allow_smoking: form.allow_smoking === "true",
+              allow_children: form.allow_children === "true",
+              allow_party: form.allow_party === "true",
+            },
           }),
         },
       );
       const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 403 && data.error?.includes("24 цагийн үнэгүй")) {
-          setShowFreeLimitPopover(true);
-          setPlanLoading(false);
-          return;
-        }
-        throw new Error(data.error || "Алдаа гарлаа");
-      }
-      setPlanSaved(true);
+      if (!res.ok) throw new Error(data.error || "Алдаа гарлаа");
       onSaved();
       onClose();
     } catch (err: any) {
@@ -244,6 +209,7 @@ function EditModal({
     }
   };
 
+  // ── Багц шинэчлэх ──
   const handlePlanSave = async () => {
     setPlanLoading(true);
     setPlanSaved(false);
@@ -264,7 +230,14 @@ function EditModal({
         },
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Алдаа гарлаа");
+      if (!res.ok) {
+        if (res.status === 403 && data.error?.includes("24 цагийн үнэгүй")) {
+          setShowFreeLimitPopover(true);
+          setPlanLoading(false);
+          return;
+        }
+        throw new Error(data.error || "Алдаа гарлаа");
+      }
       setPlanSaved(true);
       onSaved();
     } catch (err: any) {
@@ -274,8 +247,8 @@ function EditModal({
     }
   };
 
-  const inp =
-    "w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all";
+  const currentPlanPrice = PLAN_PRICES[planType][planDays] ?? 0;
+  const inp = "w-full px-4 py-2.5 text-sm bg-muted/50 border border-border/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all";
   const tabs = [
     { key: "basic", label: "Үндсэн", icon: FileText },
     { key: "detail", label: "Нэмэлт", icon: Tag },
@@ -285,10 +258,7 @@ function EditModal({
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
           className="w-full max-w-xl bg-background rounded-2xl shadow-2xl border border-border/60 pointer-events-auto animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col max-h-[88vh]"
@@ -302,10 +272,7 @@ function EditModal({
                 {listing.title}
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-full hover:bg-muted transition-colors"
-            >
+            <button onClick={onClose} className="p-1.5 rounded-full hover:bg-muted transition-colors">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -348,11 +315,7 @@ function EditModal({
                   <div className="space-y-4">
                     {[
                       { label: "Гарчиг", key: "title", placeholder: "" },
-                      {
-                        label: "Хаяг",
-                        key: "address",
-                        placeholder: "Дүүрэг, хороо, гудамж...",
-                      },
+                      { label: "Хаяг", key: "address", placeholder: "Дүүрэг, хороо, гудамж..." },
                     ].map((f) => (
                       <div key={f.key}>
                         <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
@@ -366,6 +329,7 @@ function EditModal({
                         />
                       </div>
                     ))}
+
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
                         Утас
@@ -380,6 +344,7 @@ function EditModal({
                         />
                       </div>
                     </div>
+
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
                         Тайлбар
@@ -392,6 +357,7 @@ function EditModal({
                         className={cn(inp, "resize-none")}
                       />
                     </div>
+
                     <div className="space-y-3">
                       <label className="text-xs font-semibold text-muted-foreground block">
                         Үнийн мэдээлэл
@@ -400,12 +366,10 @@ function EditModal({
                         { label: "Өдрийн үнэ (₮) *", key: "price_per_day" },
                         { label: "7 хоногийн үнэ", key: "price_per_week" },
                         { label: "Сарын үнэ", key: "price_per_month" },
-                        { label: "Баталгааны мөнгө", key: "deposit" },
+                        { label: "Барьцаа мөнгө", key: "deposit" },
                       ].map((f) => (
                         <div key={f.key} className="relative">
-                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                            ₮
-                          </span>
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₮</span>
                           <input
                             type="number"
                             value={form[f.key as keyof typeof form] as string}
@@ -416,6 +380,7 @@ function EditModal({
                         </div>
                       ))}
                     </div>
+
                     <div className="grid grid-cols-4 gap-2">
                       {[
                         { label: "Өрөө", key: "rooms" },
@@ -424,9 +389,7 @@ function EditModal({
                         { label: "Хүн", key: "max_guests" },
                       ].map((f) => (
                         <div key={f.key}>
-                          <label className="text-xs text-muted-foreground mb-1 block">
-                            {f.label}
-                          </label>
+                          <label className="text-xs text-muted-foreground mb-1 block">{f.label}</label>
                           <input
                             type="number"
                             value={form[f.key as keyof typeof form] as string}
@@ -444,48 +407,33 @@ function EditModal({
                   <div className="space-y-5">
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-2 block">
-                        Check-in / Check-out цаг
+                        Орох / Гарах цаг
                       </label>
                       <div className="p-3 rounded-xl bg-muted/40 border border-border/50 text-xs text-muted-foreground mb-3">
-                        <strong>Check-in</strong> — зочид орж болох цаг (жишээ:
-                        14:00)
-                        <br />
-                        <strong>Check-out</strong> — зочид гарах ёстой цаг
-                        (жишээ: 12:00)
+                        <strong>Орох цаг</strong> — зочид орж болох цаг (жишээ: 14:00)<br />
+                        <strong>Гарах цаг</strong> — зочид гарах ёстой цаг (жишээ: 12:00)
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         {[
-                          { label: "Check-in", key: "checkin_time" },
-                          { label: "Check-out", key: "checkout_time" },
+                          { label: "Орох цаг", key: "checkin_time" },
+                          { label: "Гарах цаг", key: "checkout_time" },
                         ].map((f) => (
                           <div key={f.key}>
-                            <label className="text-xs text-muted-foreground mb-1 block">
-                              {f.label}
-                            </label>
+                            <label className="text-xs text-muted-foreground mb-1 block">{f.label}</label>
                             <select
                               value={form[f.key as keyof typeof form] as string}
                               onChange={(e) => set(f.key, e.target.value)}
                               className={inp}
                             >
-                              {[
-                                "09:00",
-                                "10:00",
-                                "11:00",
-                                "12:00",
-                                "13:00",
-                                "14:00",
-                                "15:00",
-                                "16:00",
-                              ].map((t) => (
-                                <option key={t} value={t}>
-                                  {t}
-                                </option>
+                              {["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"].map((t) => (
+                                <option key={t} value={t}>{t}</option>
                               ))}
                             </select>
                           </div>
                         ))}
                       </div>
                     </div>
+
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-2 block">
                         Хамгийн бага захиалгын хоног
@@ -514,6 +462,7 @@ function EditModal({
                         ))}
                       </div>
                     </div>
+
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
                         Шошго (таслалаар)
@@ -528,30 +477,77 @@ function EditModal({
                   </div>
                 )}
 
-                {/* RULES */}
+                {/* RULES — Тохижилт + Дүрэм */}
                 {tab === "rules" && (
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-3 block">
-                      Тохижилт
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {amenitiesList.map((a) => (
-                        <button
-                          key={a}
-                          onClick={() => toggleAmenity(a)}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
-                            form.amenities.includes(a)
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "border-border/60 text-muted-foreground hover:border-primary/40",
-                          )}
-                        >
-                          {form.amenities.includes(a) && (
-                            <CheckCircle2 className="h-3 w-3" />
-                          )}
-                          {a}
-                        </button>
-                      ))}
+                  <div className="space-y-5">
+                    {/* Байрны дүрэм */}
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-3 block">
+                        Байрны дүрэм
+                      </label>
+                      <div className="space-y-2">
+                        {[
+                          { key: "allow_pets", emoji: "🐾", label: "Амьтан зөвшөөрнө" },
+                          { key: "allow_smoking", emoji: "🚬", label: "Тамхи татах" },
+                          { key: "allow_children", emoji: "👶", label: "Хүүхэдтэй зочин" },
+                          { key: "allow_party", emoji: "🎉", label: "Найр зохиох" },
+                        ].map(({ key, emoji, label }) => (
+                          <div
+                            key={key}
+                            onClick={() =>
+                              set(key, form[key as keyof typeof form] === "true" ? "false" : "true")
+                            }
+                            className={cn(
+                              "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
+                              form[key as keyof typeof form] === "true"
+                                ? "border-primary bg-primary/5"
+                                : "border-border/60 hover:border-primary/30",
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg">{emoji}</span>
+                              <span className="text-sm font-medium">{label}</span>
+                            </div>
+                            <div
+                              className={cn(
+                                "w-10 h-6 rounded-full transition-all relative shrink-0",
+                                form[key as keyof typeof form] === "true" ? "bg-primary" : "bg-muted",
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all",
+                                  form[key as keyof typeof form] === "true" ? "left-5" : "left-1",
+                                )}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Тохижилт */}
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-3 block">
+                        Тохижилт
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {amenitiesList.map((a) => (
+                          <button
+                            key={a}
+                            onClick={() => toggleAmenity(a)}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                              form.amenities.includes(a)
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "border-border/60 text-muted-foreground hover:border-primary/40",
+                            )}
+                          >
+                            {form.amenities.includes(a) && <CheckCircle2 className="h-3 w-3" />}
+                            {a}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -568,9 +564,7 @@ function EditModal({
                           : "bg-muted/40 border-border/60",
                       )}
                     >
-                      <p className="text-xs font-semibold text-muted-foreground mb-2">
-                        Одоогийн багц
-                      </p>
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">Одоогийн багц</p>
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-sm">
                           {listing.is_vip ? "⭐ VIP зар" : "📋 Энгийн зар"}
@@ -589,9 +583,7 @@ function EditModal({
                       {listing.expires_at &&
                         (() => {
                           const days = Math.ceil(
-                            (new Date(listing.expires_at!).getTime() -
-                              Date.now()) /
-                              86400000,
+                            (new Date(listing.expires_at!).getTime() - Date.now()) / 86400000,
                           );
                           return (
                             <div
@@ -605,15 +597,9 @@ function EditModal({
                               )}
                             >
                               <Clock className="h-3 w-3" />
-                              {days <= 0
-                                ? "Хугацаа дууссан"
-                                : `${days} хоног үлдсэн`}
+                              {days <= 0 ? "Хугацаа дууссан" : `${days} хоног үлдсэн`}
                               <span className="text-muted-foreground">
-                                (
-                                {new Date(
-                                  listing.expires_at!,
-                                ).toLocaleDateString("mn-MN")}
-                                )
+                                ({new Date(listing.expires_at!).toLocaleDateString("mn-MN")})
                               </span>
                             </div>
                           );
@@ -631,9 +617,7 @@ function EditModal({
                             key={type}
                             onClick={() => {
                               setPlanType(type);
-                              // VIP-д 24 цаг байхгүй учраас reset
-                              if (type === "vip" && planDays === 24)
-                                setPlanDays(7);
+                              if (type === "vip" && planDays === 24) setPlanDays(7);
                             }}
                             className={cn(
                               "p-3 rounded-xl border-2 text-left transition-all",
@@ -648,66 +632,32 @@ function EditModal({
                               {type === "vip" ? "⭐ VIP зар" : "📋 Энгийн зар"}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {type === "vip"
-                                ? "Хайлтад эхэнд гарна"
-                                : "Хэвийн жагсаалтад"}
+                              {type === "vip" ? "Хайлтад эхэнд гарна" : "Хэвийн жагсаалтад"}
                             </div>
                             {planType === type && (
                               <CheckCircle2
                                 className={cn(
                                   "h-4 w-4 mt-1.5",
-                                  type === "vip"
-                                    ? "text-amber-500"
-                                    : "text-primary",
+                                  type === "vip" ? "text-amber-500" : "text-primary",
                                 )}
                               />
                             )}
                           </button>
                         ))}
                       </div>
+
                       <div className="space-y-2">
                         {(planType === "standard"
                           ? [
-                              {
-                                days: 24 as const,
-                                price: 0,
-                                label: "24 цаг",
-                                free: true,
-                              },
-                              {
-                                days: 7 as const,
-                                price: 5000,
-                                label: "7 хоног",
-                              },
-                              {
-                                days: 14 as const,
-                                price: 8000,
-                                label: "14 хоног",
-                                popular: true,
-                              },
-                              {
-                                days: 30 as const,
-                                price: 15000,
-                                label: "30 хоног",
-                              },
+                              { days: 24 as const, price: 0, label: "24 цаг", free: true },
+                              { days: 7 as const, price: 5000, label: "7 хоног" },
+                              { days: 14 as const, price: 8000, label: "14 хоног", popular: true },
+                              { days: 30 as const, price: 15000, label: "30 хоног" },
                             ]
                           : [
-                              {
-                                days: 7 as const,
-                                price: 15000,
-                                label: "VIP · 7 хоног",
-                              },
-                              {
-                                days: 14 as const,
-                                price: 25000,
-                                label: "VIP · 14 хоног",
-                                popular: true,
-                              },
-                              {
-                                days: 30 as const,
-                                price: 45000,
-                                label: "VIP · 30 хоног",
-                              },
+                              { days: 7 as const, price: 15000, label: "VIP · 7 хоног" },
+                              { days: 14 as const, price: 25000, label: "VIP · 14 хоног", popular: true },
+                              { days: 30 as const, price: 45000, label: "VIP · 30 хоног" },
                             ]
                         ).map((pkg) => (
                           <button
@@ -738,9 +688,7 @@ function EditModal({
                                 )}
                               </div>
                               <div className="text-left">
-                                <span className="text-sm font-semibold">
-                                  {pkg.label}
-                                </span>
+                                <span className="text-sm font-semibold">{pkg.label}</span>
                                 {"popular" in pkg && pkg.popular && (
                                   <span
                                     className={cn(
@@ -759,9 +707,7 @@ function EditModal({
                                   </span>
                                 )}
                                 <div className="text-xs text-muted-foreground">
-                                  {pkg.days === 24
-                                    ? "24 цаг нэмэгдэнэ"
-                                    : `${pkg.days} хоног нэмэгдэнэ`}
+                                  {pkg.days === 24 ? "24 цаг нэмэгдэнэ" : `${pkg.days} хоног нэмэгдэнэ`}
                                 </div>
                               </div>
                             </div>
@@ -777,9 +723,7 @@ function EditModal({
                                     : "text-foreground",
                               )}
                             >
-                              {pkg.price === 0
-                                ? "Үнэгүй"
-                                : `${pkg.price.toLocaleString()}₮`}
+                              {pkg.price === 0 ? "Үнэгүй" : `${pkg.price.toLocaleString()}₮`}
                             </span>
                           </button>
                         ))}
@@ -788,9 +732,8 @@ function EditModal({
 
                     {/* Дүн */}
                     {(() => {
-                      const price = PLAN_PRICES[planType][planDays] ?? 0;
-                      const durationLabel =
-                        planDays === 24 ? "+24 цаг" : `+${planDays} хоног`;
+                      const price = currentPlanPrice;
+                      const durationLabel = planDays === 24 ? "+24 цаг" : `+${planDays} хоног`;
                       return (
                         <div
                           className={cn(
@@ -801,17 +744,11 @@ function EditModal({
                           )}
                         >
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">
-                              Нэмэгдэх хугацаа
-                            </span>
-                            <span className="font-semibold">
-                              {durationLabel}
-                            </span>
+                            <span className="text-muted-foreground">Нэмэгдэх хугацаа</span>
+                            <span className="font-semibold">{durationLabel}</span>
                           </div>
                           <div className="flex justify-between mb-2">
-                            <span className="text-muted-foreground text-sm">
-                              Төлбөр
-                            </span>
+                            <span className="text-muted-foreground text-sm">Төлбөр</span>
                             <span
                               className={cn(
                                 "text-lg font-bold font-mono",
@@ -822,9 +759,7 @@ function EditModal({
                                     : "text-primary",
                               )}
                             >
-                              {price === 0
-                                ? "Үнэгүй"
-                                : `${price.toLocaleString()}₮`}
+                              {price === 0 ? "Үнэгүй" : `${price.toLocaleString()}₮`}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground">
@@ -834,10 +769,31 @@ function EditModal({
                       );
                     })()}
 
+                    {/* ⚠️ Төлбөртэй багц үед status өөрчлөгдөх анхааруулга */}
+                    {currentPlanPrice > 0 && !planSaved && (
+                      <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 flex gap-2.5">
+                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                            Төлөв өөрчлөгдөнө
+                          </p>
+                          <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+                            Багц шинэчилмэгц зар <strong>"Хүлээгдэж байна"</strong> төлөвт орох ба
+                            төлбөр баталгаажмагц admin талаас идэвхжүүлэгдэнэ.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ✅ Амжилттай мэдэгдэл */}
                     {planSaved && (
-                      <div className="flex items-center gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-sm">
-                        <CheckCircle2 className="h-4 w-4 shrink-0" /> Багц
-                        амжилттай шинэчлэгдлээ!
+                      <div className="flex items-start gap-2 px-3 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-sm dark:bg-emerald-950/20">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                        <div>
+                          {currentPlanPrice > 0
+                            ? "Багц шинэчлэгдлээ! Төлбөр баталгаажмагц зар автоматаар идэвхжинэ."
+                            : "Багц амжилттай шинэчлэгдлээ!"}
+                        </div>
                       </div>
                     )}
 
@@ -852,11 +808,7 @@ function EditModal({
                         planLoading && "opacity-60 cursor-not-allowed",
                       )}
                     >
-                      {planLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Star className="h-4 w-4" />
-                      )}
+                      {planLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
                       {planLoading ? "Хадгалж байна..." : "Багц шинэчлэх"}
                     </button>
                   </div>
@@ -865,7 +817,7 @@ function EditModal({
             )}
           </div>
 
-          {/* Footer — plan tab-д харагдахгүй */}
+          {/* Footer */}
           {tab !== "plan" && (
             <div className="px-6 py-4 border-t border-border/50 shrink-0">
               {error && (
@@ -874,22 +826,11 @@ function EditModal({
                 </p>
               )}
               <div className="flex items-center justify-between">
-                <button
-                  onClick={onClose}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Цуцлах
                 </button>
-                <Button
-                  onClick={handleSave}
-                  disabled={loading}
-                  className="gap-2"
-                >
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" />
-                  )}
+                <Button onClick={handleSave} disabled={loading} className="gap-2">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {loading ? "Хадгалж байна..." : "Хадгалах"}
                 </Button>
               </div>
@@ -897,9 +838,7 @@ function EditModal({
           )}
           {tab === "plan" && error && (
             <div className="px-6 py-3 border-t border-border/50 shrink-0">
-              <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
-                {error}
-              </p>
+              <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>
             </div>
           )}
         </div>
@@ -915,7 +854,7 @@ function EditModal({
   );
 }
 
-// ── Main Page ─────────────────────────────────────────
+// ═══════════════ MAIN PAGE ═══════════════
 export default function MyListingsPage() {
   const { isLoggedIn, user, token } = useAuth();
   const router = useRouter();
@@ -934,16 +873,15 @@ export default function MyListingsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/listings/my`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/listings/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Алдаа гарлаа");
       const newListings: Listing[] = data.data || data;
       setListings(newListings);
 
-      // ✨ EditModal-д ирэх listing-ийг шинэчлэх — хамгийн чухал хэсэг
+      // EditModal-д орсон listing-ийг шинэчлэх
       setEditListing((prev) =>
         prev ? (newListings.find((l) => l.id === prev.id) ?? prev) : null,
       );
@@ -953,6 +891,7 @@ export default function MyListingsPage() {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     if (isLoggedIn && token) fetchMyListings();
   }, [isLoggedIn, token]);
@@ -960,13 +899,10 @@ export default function MyListingsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Зарыг устгах уу?")) return;
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/listings/${id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/listings/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) throw new Error("Устгах амжилтгүй");
       setListings((prev) => prev.filter((l) => l.id !== id));
     } catch (err: any) {
@@ -993,11 +929,7 @@ export default function MyListingsPage() {
 
         <div className="grid grid-cols-3 gap-3 mb-8">
           {[
-            {
-              label: "Нийт зар",
-              value: listings.length,
-              color: "text-foreground",
-            },
+            { label: "Нийт зар", value: listings.length, color: "text-foreground" },
             {
               label: "Идэвхтэй",
               value: listings.filter((l) => l.status === "active").length,
@@ -1009,10 +941,7 @@ export default function MyListingsPage() {
               color: "text-primary",
             },
           ].map(({ label, value, color }) => (
-            <div
-              key={label}
-              className="p-4 rounded-2xl border border-border/60 bg-background text-center"
-            >
+            <div key={label} className="p-4 rounded-2xl border border-border/60 bg-background text-center">
               <p className={cn("text-2xl font-bold", color)}>{value}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
             </div>
@@ -1028,9 +957,7 @@ export default function MyListingsPage() {
         {!loading && error && (
           <div className="text-center py-20">
             <p className="text-destructive mb-4">{error}</p>
-            <Button variant="outline" onClick={fetchMyListings}>
-              Дахин оролдох
-            </Button>
+            <Button variant="outline" onClick={fetchMyListings}>Дахин оролдох</Button>
           </div>
         )}
         {!loading && !error && listings.length === 0 && (
@@ -1047,8 +974,7 @@ export default function MyListingsPage() {
         {!loading && !error && listings.length > 0 && (
           <div className="space-y-4">
             {listings.map((listing) => {
-              const status =
-                statusConfig[listing.status] ?? statusConfig.pending;
+              const status = statusConfig[listing.status] ?? statusConfig.pending;
               const expiry = formatExpiry(listing.expires_at);
               return (
                 <div
@@ -1076,15 +1002,8 @@ export default function MyListingsPage() {
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="font-semibold text-sm leading-snug line-clamp-1">
-                          {listing.title}
-                        </h3>
-                        <span
-                          className={cn(
-                            "text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0",
-                            status.color,
-                          )}
-                        >
+                        <h3 className="font-semibold text-sm leading-snug line-clamp-1">{listing.title}</h3>
+                        <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0", status.color)}>
                           {status.label}
                         </span>
                       </div>
@@ -1093,25 +1012,13 @@ export default function MyListingsPage() {
                         <span>{listing.location_name}</span>
                         <span className="mx-1">•</span>
                         <Calendar className="h-3 w-3 shrink-0" />
-                        <span>
-                          {new Date(listing.created_at).toLocaleDateString(
-                            "mn-MN",
-                          )}
-                        </span>
+                        <span>{new Date(listing.created_at).toLocaleDateString("mn-MN")}</span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground mb-1.5">
-                        <span className="flex items-center gap-1">
-                          <BedDouble className="h-3 w-3" /> {listing.rooms} өрөө
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Bath className="h-3 w-3" /> {listing.bathrooms}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Square className="h-3 w-3" /> {listing.area_sqm}м²
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Eye className="h-3 w-3" /> {listing.view_count}
-                        </span>
+                        <span className="flex items-center gap-1"><BedDouble className="h-3 w-3" /> {listing.rooms} өрөө</span>
+                        <span className="flex items-center gap-1"><Bath className="h-3 w-3" /> {listing.bathrooms}</span>
+                        <span className="flex items-center gap-1"><Square className="h-3 w-3" /> {listing.area_sqm}м²</span>
+                        <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {listing.view_count}</span>
                       </div>
                       {expiry && (
                         <div
@@ -1132,9 +1039,7 @@ export default function MyListingsPage() {
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/40">
                       <span className="font-bold text-primary text-sm">
                         {listing.price_per_day.toLocaleString()}₮
-                        <span className="text-xs font-normal text-muted-foreground">
-                          /өдөр
-                        </span>
+                        <span className="text-xs font-normal text-muted-foreground">/өдөр</span>
                       </span>
                       <div className="flex items-center gap-1.5">
                         <button

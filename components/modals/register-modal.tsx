@@ -8,6 +8,7 @@ import { ServiceRegisterModal } from "./service-register-modal";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { useAuth } from "@/components/auth/auth-provider";
 
+
 type Tab = "listing" | "service";
 
 interface Props {
@@ -19,6 +20,7 @@ export function RegisterModal({ open, onClose }: Props) {
   const { isLoggedIn, login } = useAuth();
   const [tab, setTab] = useState<Tab>("listing");
   const [authOpen, setAuthOpen] = useState(false);
+  const { token, user } = useAuth();
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
