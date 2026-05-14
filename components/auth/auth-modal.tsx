@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import {
   X, Phone, Lock, Eye, EyeOff, CheckCircle2,
   LogIn, UserPlus, RefreshCw, Copy, Check,
@@ -12,7 +13,7 @@ export type AuthUser = {
   id:    string
   name:  string
   phone: string
-  token: string  // ← байсан, зөв
+  token: string
 }
 
 interface Props {
@@ -20,33 +21,39 @@ interface Props {
   onClose: () => void
   onSuccess: (user: AuthUser) => void
   defaultTab?: "login" | "register"
+  redirectAfterLogin?: string  // ← ШИНЭ: nullable, optional
 }
 
-// Санамсаргүй нууц үг үүсгэх
 function generatePassword(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#"
   let pass = ""
   for (let i = 0; i < 12; i++) {
     pass += chars[Math.floor(Math.random() * chars.length)]
   }
-  // Xxxx-xxxx-xxxx формат
   return `${pass.slice(0,4)}-${pass.slice(4,8)}-${pass.slice(8,12)}`
 }
 
-export function AuthModal({ open, onClose, onSuccess, defaultTab = "login" }: Props) {
-  const [tab,          setTab]          = useState<"login" | "register">(defaultTab)
-  const [phone,        setPhone]        = useState("")
-  const [password,     setPassword]     = useState("")
-  const [name,         setName]         = useState("")
-  const [showPass,     setShowPass]     = useState(false)
-  const [loading,      setLoading]      = useState(false)
-  const [error,        setError]        = useState("")
-  const [success,      setSuccess]      = useState(false)
-  const [copied,       setCopied]       = useState(false)
-  const [passMode,     setPassMode]     = useState<"auto" | "manual">("auto")
-  const [autoPass,     setAutoPass]     = useState("")
+export function AuthModal({
+  open,
+  onClose,
+  onSuccess,
+  defaultTab = "login",
+  redirectAfterLogin,
+}: Props) {
+  const router = useRouter()  // ← ШИНЭ
 
-  // Modal нээгдэх үед auto нууц үг үүсгэнэ
+  const [tab,      setTab]      = useState<"login" | "register">(defaultTab)
+  const [phone,    setPhone]    = useState("")
+  const [password, setPassword] = useState("")
+  const [name,     setName]     = useState("")
+  const [showPass, setShowPass] = useState(false)
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState("")
+  const [success,  setSuccess]  = useState(false)
+  const [copied,   setCopied]   = useState(false)
+  const [passMode, setPassMode] = useState<"auto" | "manual">("auto")
+  const [autoPass, setAutoPass] = useState("")
+
   useEffect(() => {
     if (open && tab === "register") {
       const p = generatePassword()
@@ -71,7 +78,6 @@ export function AuthModal({ open, onClose, onSuccess, defaultTab = "login" }: Pr
     return () => { document.body.style.overflow = "" }
   }, [open])
 
-  // Tab солих үед auto нууц үг шинэчлэх
   const handleTabChange = (t: "login" | "register") => {
     setTab(t); setError("")
     if (t === "register") {
@@ -84,7 +90,6 @@ export function AuthModal({ open, onClose, onSuccess, defaultTab = "login" }: Pr
     }
   }
 
-  // Шинэ нууц үг үүсгэх
   const handleRegenerate = () => {
     const p = generatePassword()
     setAutoPass(p)
@@ -92,42 +97,50 @@ export function AuthModal({ open, onClose, onSuccess, defaultTab = "login" }: Pr
     setCopied(false)
   }
 
-  // Manual mode руу шилжих
   const handleManualMode = () => {
     setPassMode("manual")
     setPassword("")
     setShowPass(true)
   }
 
-  // Clipboard хуулах
   const handleCopy = async () => {
     await navigator.clipboard.writeText(password)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // handleLogin дотор — onSuccess дуудах хэсэг
-const handleLogin = async () => {
-  if (!phone || !password) { setError("Утас болон нууц үгээ оруулна уу"); return }
-  setLoading(true); setError("")
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: phone.replace(/\D/g, ""), password }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error || "Нэвтрэх амжилтгүй"); return }
+  // ── LOGIN ──
+  const handleLogin = async () => {
+    if (!phone || !password) {
+      setError("Утас болон нууц үгээ оруулна уу")
+      return
+    }
+    setLoading(true); setError("")
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone.replace(/\D/g, ""), password }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || "Нэвтрэх амжилтгүй")
+        return
+      }
 
-    // ← localStorage хасаж, token-г user дотор дамжуулна
-    onSuccess({ ...data.user, token: data.token })
-    onClose()
-  } catch {
-    setError("Сервертэй холбогдож чадсангүй")
-  } finally {
-    setLoading(false)
+      onSuccess({ ...data.user, token: data.token })
+      onClose()
+
+      // ── ✨ Login амжилттай → my-listings руу үсэргэх ──
+      if (redirectAfterLogin) {
+        router.push(redirectAfterLogin)
+      }
+    } catch {
+      setError("Сервертэй холбогдож чадсангүй")
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   const handleRegister = async () => {
     if (!phone || !name)  { setError("Нэр болон утасны дугаараа оруулна уу"); return }
@@ -156,8 +169,10 @@ const handleLogin = async () => {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-        onClick={onClose} />
+      <div
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={onClose}
+      />
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
@@ -199,7 +214,6 @@ const handleLogin = async () => {
                 </div>
                 <p className="font-bold">Бүртгэл амжилттай!</p>
 
-                {/* Нууц үгийг харуулах */}
                 <div className="w-full p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 text-left space-y-1">
                   <p className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
                     ⚠️ Нууц үгээ хадгалаарай!
@@ -229,7 +243,6 @@ const handleLogin = async () => {
             {/* ── FORM ── */}
             {!success && (
               <>
-                {/* Нэр (register) */}
                 {tab === "register" && (
                   <div>
                     <label className="text-xs font-semibold mb-1.5 block text-muted-foreground">Нэр</label>
@@ -239,7 +252,6 @@ const handleLogin = async () => {
                   </div>
                 )}
 
-                {/* Утас */}
                 <div>
                   <label className="text-xs font-semibold mb-1.5 block text-muted-foreground">Утасны дугаар</label>
                   <div className="relative">
@@ -251,7 +263,6 @@ const handleLogin = async () => {
                   </div>
                 </div>
 
-                {/* Нууц үг */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-muted-foreground">Нууц үг</label>
@@ -272,7 +283,6 @@ const handleLogin = async () => {
                     )}
                   </div>
 
-                  {/* Auto mode */}
                   {tab === "register" && passMode === "auto" && (
                     <div className="relative">
                       <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/50 border border-border/60 rounded-xl">
@@ -304,7 +314,6 @@ const handleLogin = async () => {
                     </div>
                   )}
 
-                  {/* Manual mode / Login */}
                   {(tab === "login" || passMode === "manual") && (
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -324,12 +333,10 @@ const handleLogin = async () => {
                   )}
                 </div>
 
-                {/* Error */}
                 {error && (
                   <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>
                 )}
 
-                {/* Submit */}
                 <Button
                   onClick={tab === "login" ? handleLogin : handleRegister}
                   disabled={loading}

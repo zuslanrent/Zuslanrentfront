@@ -226,7 +226,9 @@ export function Navbar() {
       <AuthModal
         open={authOpen}
         onClose={() => setAuthOpen(false)}
-        onSuccess={login} // ← (user: AuthUser) => void — таарна
+        onSuccess={login}
+        defaultTab="login"
+        redirectAfterLogin="/my-listings" // ← my-listings руу үсэргэнэ
       />
     </>
   );
