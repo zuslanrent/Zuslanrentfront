@@ -273,7 +273,6 @@ function ListingCard({
               ))
             )}
           </div>
-          <PhoneReveal phone={item.phone} />
         </div>
       </CardContent>
     </Card>
