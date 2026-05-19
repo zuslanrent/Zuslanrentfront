@@ -7,10 +7,9 @@ import {
   Home,
   Tent,
   Building2,
-  TreePine,
-  Warehouse,
-  Waves,
-  Mountain,
+  Tag,
+  Key,
+  Car,
   Grid3X3,
   List,
   BedDouble,
@@ -37,6 +36,7 @@ export type Listing = {
   location_name: string;
   location_slug: string;
   price_per_day: string | number;
+  price_per_month: string | number | null;
   cover_image: string | null;
   images: { url: string; is_cover: boolean }[] | null;
   category_name: string;
@@ -61,16 +61,54 @@ export type Listing = {
   khoroo?: number | null;
   zuslan_area?: string | null;
   has_garage?: boolean | null;
+  bay_subtype?: string | null;
 };
 
 const categories = [
-  { icon: Home, label: "Орон сууц", id: "apartment" },
-  { icon: Tent, label: "Зуслан", id: "camp" },
-  { icon: Building2, label: "Байшин", id: "house" },
-  { icon: TreePine, label: "Ойн бүс", id: "forest" },
-  { icon: Warehouse, label: "Агуулах", id: "warehouse" },
-  { icon: Waves, label: "Нуурын эрэг", id: "lake" },
-  { icon: Mountain, label: "Уулын бүс", id: "mountain" },
+  { icon: Tag, label: "Байр зарах", id: "bay-sell" },
+  { icon: Key, label: "Байр түрээс", id: "bay-rent" },
+  { icon: Tent, label: "Зуслан", id: "zuslan" },
+  // { icon: TreePine, label: "Ойн бүс", id: "forest" },
+  // { icon: Warehouse, label: "Агуулах", id: "warehouse" },
+  // { icon: Waves, label: "Нуурын эрэг", id: "lake" },
+  // { icon: Mountain, label: "Уулын бүс", id: "mountain" },
+];
+
+// ── Байршил: УБ дүүрэг ──
+const UB_DISTRICTS = [
+  "Багануур",
+  "Багахангай",
+  "Баянгол",
+  "Баянзүрх",
+  "Налайх",
+  "Сонгинохайрхан",
+  "Сүхбаатар",
+  "Хан-Уул",
+  "Чингэлтэй",
+];
+
+// ── Зуслангийн газрууд ──
+const ZUSLAN_AREAS = [
+  "Тэрэлж",
+  "Сэргэлэн",
+  "Гачуурт",
+  "Богдхан",
+  "Хустай",
+  "Горхи",
+  "Улиастай",
+  "Мандал",
+  "Баянчандмань",
+  "Налайх",
+];
+
+// ── Дэд төрөл (Байр) ──
+const BAY_SUBTYPES = [
+  { id: "apartment", label: "Орон сууц" },
+  { id: "duplex", label: "Дуплекс" },
+  { id: "penthouse", label: "Пентхаус" },
+  { id: "townhouse", label: "Таунхаус" },
+  { id: "house", label: "Хаус" },
+  { id: "villa", label: "Вилла" },
 ];
 
 const allLocations = [
@@ -158,9 +196,16 @@ function ListingCard({
   const coverImage =
     item.cover_image || item.images?.[0]?.url || "/placeholder.svg";
   const price = parseFloat(String(item.price_per_day));
+  const priceMonth = item.price_per_month
+    ? parseFloat(String(item.price_per_month))
+    : null;
   const rating = parseFloat(String(item.avg_rating));
   const isSale = item.bay_action === "sell";
   const locationText = getLocationDisplay(item);
+
+  const isMonthly = !isSale && !!priceMonth;
+  const displayPrice = isMonthly ? priceMonth! : price;
+  const displayLabel = isSale ? "Зарах үнэ" : isMonthly ? "/сар" : "/өдөр";
 
   return (
     <Card
@@ -205,9 +250,9 @@ function ListingCard({
           )}
         </div>
 
-        {/* ⭐ NEW: Action badge — Зарах / Түрээс */}
-        {item.property_category === "bay" && item.bay_action && (
-          <ActionBadge action={item.bay_action} />
+        {/* ⭐ Action badge — Зарах / Түрээс */}
+        {(item.bay_action || item.property_category === "zuslan") && (
+          <ActionBadge action={item.bay_action === "sell" ? "sell" : "rent"} />
         )}
 
         <button
@@ -255,7 +300,7 @@ function ListingCard({
                       : "text-primary",
                 )}
               >
-                {price.toLocaleString()}₮
+                {displayPrice.toLocaleString()}₮
               </p>
               <p
                 className={cn(
@@ -265,7 +310,7 @@ function ListingCard({
                     : "text-muted-foreground",
                 )}
               >
-                {isSale ? "Зарах үнэ" : "/өдөр"}
+                {displayLabel}
               </p>
             </div>
           </div>
@@ -348,20 +393,32 @@ export default function AdsPage() {
   const [minRooms, setMinRooms] = useState(0);
   const [minBathrooms, setMinBathrooms] = useState(0);
   const [minGuests, setMinGuests] = useState(0);
+  const [activeSubtypes, setActiveSubtypes] = useState<string[]>([]);
+  const [needsGarage, setNeedsGarage] = useState(false);
+  const [minArea, setMinArea] = useState(0);
   const [sortBy, setSortBy] = useState(sortOptions[0]);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [faved, setFaved] = useState<string[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selected, setSelected] = useState<Listing | null>(null);
 
+  const hasBay = activeCategories.some((c) => c.startsWith("bay"));
+  const hasZuslan = activeCategories.includes("zuslan");
+  const contextLocations =
+    hasBay && !hasZuslan
+      ? UB_DISTRICTS
+      : hasZuslan && !hasBay
+        ? ZUSLAN_AREAS
+        : Array.from(new Set([...UB_DISTRICTS, ...ZUSLAN_AREAS]));
+
   const filteredLocations = useMemo(
     () =>
       locationSearch
-        ? allLocations.filter((l) =>
+        ? contextLocations.filter((l) =>
             l.toLowerCase().includes(locationSearch.toLowerCase()),
           )
-        : allLocations,
-    [locationSearch],
+        : contextLocations,
+    [locationSearch, contextLocations],
   );
 
   useEffect(() => {
@@ -402,6 +459,12 @@ export default function AdsPage() {
     );
     setLocationSearch("");
   };
+
+  const toggleSubtype = (id: string) =>
+    setActiveSubtypes((p) =>
+      p.includes(id) ? p.filter((s) => s !== id) : [...p, id],
+    );
+
   const clearAll = () => {
     setActiveCategories([]);
     setActiveLocations([]);
@@ -411,15 +474,21 @@ export default function AdsPage() {
     setMinBathrooms(0);
     setMinGuests(0);
     setSearch("");
+    setActiveSubtypes([]); // ⬅️ нэмэх
+    setNeedsGarage(false); // ⬅️ нэмэх
+    setMinArea(0);
   };
 
   const activeFilterCount =
     activeCategories.length +
     activeLocations.length +
+    activeSubtypes.length +
     (priceMax < priceLimit ? 1 : 0) +
     (minRooms > 0 ? 1 : 0) +
     (minBathrooms > 0 ? 1 : 0) +
-    (minGuests > 0 ? 1 : 0);
+    (minGuests > 0 ? 1 : 0) +
+    (needsGarage ? 1 : 0) +
+    (minArea > 0 ? 1 : 0);
 
   const filtered = useMemo(() => {
     const applyFilters = (list: Listing[]) =>
@@ -431,10 +500,30 @@ export default function AdsPage() {
           !locationText.toLowerCase().includes(search.toLowerCase())
         )
           return false;
+        if (activeCategories.length) {
+          const matches = activeCategories.some((cat) => {
+            if (cat === "bay-sell")
+              return l.property_category === "bay" && l.bay_action === "sell";
+            if (cat === "bay-rent")
+              return l.property_category === "bay" && l.bay_action === "rent";
+            if (cat === "zuslan") return l.property_category === "zuslan";
+            return false;
+          });
+          if (!matches) return false;
+        }
+
+        // Дэд төрөл
         if (
-          activeCategories.length &&
-          !activeCategories.includes(l.category_slug)
+          activeSubtypes.length &&
+          !activeSubtypes.includes(l.bay_subtype || "")
         )
+          return false;
+
+        // Гараж
+        if (needsGarage && !l.has_garage) return false;
+
+        // Минимум талбай
+        if (minArea > 0 && parseFloat(String(l.area_sqm)) < minArea)
           return false;
         if (
           activeLocations.length &&
@@ -495,6 +584,9 @@ export default function AdsPage() {
     minRooms,
     minBathrooms,
     minGuests,
+    activeSubtypes, // ⬅️
+    needsGarage, // ⬅️
+    minArea,
     sortBy,
   ]);
 
@@ -777,6 +869,89 @@ export default function AdsPage() {
                       {n === 0 ? "Б/б" : `${n}+`}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* ⭐ Дэд төрөл — байр сонгосон үед */}
+              {hasBay && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-primary" /> Дэд төрөл
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {BAY_SUBTYPES.map(({ id, label }) => (
+                      <button
+                        key={id}
+                        onClick={() => toggleSubtype(id)}
+                        className={cn(
+                          "text-xs px-2.5 py-0.5 rounded-full border transition-all cursor-pointer",
+                          activeSubtypes.includes(id)
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted/60 border-border/60 text-muted-foreground hover:text-foreground hover:border-primary/40",
+                        )}
+                      >
+                        {activeSubtypes.includes(id) && "✓ "}
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ⭐ Гараж — байр сонгосон үед */}
+              {hasBay && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                    <Car className="h-3.5 w-3.5 text-primary" /> Нэмэлт
+                  </h3>
+                  <button
+                    onClick={() => setNeedsGarage((v) => !v)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs border transition-all",
+                      needsGarage
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted/60 border-border/60 text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      🚗 Гаражтай
+                    </span>
+                    <div
+                      className={cn(
+                        "w-7 h-4 rounded-full transition-all relative",
+                        needsGarage ? "bg-white" : "bg-muted",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "absolute top-0.5 w-3 h-3 rounded-full transition-all",
+                          needsGarage
+                            ? "bg-primary left-3.5"
+                            : "bg-foreground/40 left-0.5",
+                        )}
+                      />
+                    </div>
+                  </button>
+                </div>
+              )}
+
+              {/* ⭐ Талбай (м²) */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+                  <Square className="h-3.5 w-3.5 text-primary" /> Талбай (м²)
+                </h3>
+                <input
+                  type="range"
+                  min={0}
+                  max={500}
+                  step={10}
+                  value={minArea}
+                  onChange={(e) => setMinArea(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                  <span>{minArea > 0 ? `${minArea}м²+` : "Бүгд"}</span>
+                  <span className="text-primary font-medium">500м²</span>
                 </div>
               </div>
 
