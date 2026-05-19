@@ -6,6 +6,7 @@ import {
   BedDouble, Bath, Square, Heart, Share2, CheckCircle2,
   Star, Eye, PawPrint, Cigarette, Baby, PartyPopper,
   Tag, Wifi, Flame, Car, Coffee, Tv, Loader2, Phone,
+  CarFront,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Listing } from "@/app/adds/page";
@@ -98,6 +99,7 @@ export function ListingModal({ item, onClose, faved, onFave }: ListingModalProps
   const checkout   = (data as any)?.checkout_time   || "12:00";
   const description = (data as any)?.description    || "";
   const isVip      = (item as any).is_vip;
+  const hasGarage  = (data as any)?.has_garage;
   const rating     = parseFloat(String(item.avg_rating)) || 0;
 
   // ── Rules parse ──
@@ -238,20 +240,32 @@ export function ListingModal({ item, onClose, faved, onFave }: ListingModalProps
               </div>
 
               {/* Stats row */}
-              <div className="grid grid-cols-4 divide-x divide-border/30 border-b border-border/30">
-                {[
-                  { icon: BedDouble, label: "Өрөө",         value: item.rooms      },
-                  { icon: Bath,      label: "Ариун цэвэр",  value: item.bathrooms  },
-                  { icon: Square,    label: "Талбай",       value: `${parseFloat(String(item.area_sqm))}м²` },
-                  { icon: Eye,       label: "Үзэлт",        value: item.view_count },
-                ].map(({ icon: Icon, label, value }) => (
-                  <div key={label} className="flex flex-col items-center gap-1 py-4 px-2">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-base font-bold">{value}</p>
-                    <p className="text-[10px] text-muted-foreground">{label}</p>
-                  </div>
-                ))}
-              </div>
+<div className="grid grid-cols-4 divide-x divide-border/30 border-b border-border/30">
+  {[
+    { icon: BedDouble, label: "Өрөө", value: item.rooms },
+    { icon: Bath, label: "Ариун цэвэр", value: item.bathrooms },
+    {
+      icon: Square,
+      label: "Талбай",
+      value: `${parseFloat(String(item.area_sqm))}м²`,
+    },
+    // { icon: Eye, label: "Үзэлт", value: item.view_count },
+    {
+      icon: CarFront,
+      label: "Гараж",
+      value: item.has_garage ? "Гаражтай" : "Гаражгүй",
+    },
+  ].map(({ icon: Icon, label, value }) => (
+    <div
+      key={label}
+      className="flex flex-col items-center gap-1 py-4 px-2"
+    >
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      <p className="text-base font-bold">{value}</p>
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+    </div>
+  ))}
+</div>
 
               {/* Loading state */}
               {loadingDetail && (

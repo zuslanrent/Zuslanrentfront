@@ -53,11 +53,14 @@ export type Listing = {
   avg_rating: string | number;
   review_count: number;
   view_count: number;
-  // status: string;
   created_at: string;
-  // plan?: string;
-  // plan_price?: number;
-  // expires_at?: string;
+  // ⭐ NEW: Step 2-оос ирэх field-үүд
+  property_category?: "bay" | "zuslan" | null;
+  bay_action?: "sell" | "rent" | null;
+  district?: string | null;
+  khoroo?: number | null;
+  zuslan_area?: string | null;
+  has_garage?: boolean | null;
 };
 
 const categories = [
@@ -90,6 +93,19 @@ const sortOptions = [
   "Үнэлгээ",
 ];
 
+// ── Helper: location текст бэлдэх ──
+function getLocationDisplay(item: Listing): string {
+  if (item.property_category === "bay" && item.district) {
+    return item.khoroo
+      ? `${item.district}, ${item.khoroo}-р хороо`
+      : item.district;
+  }
+  if (item.property_category === "zuslan" && item.zuslan_area) {
+    return item.zuslan_area;
+  }
+  return item.location_name || "—";
+}
+
 function VipBadge() {
   return (
     <div
@@ -102,6 +118,25 @@ function VipBadge() {
       <Star className="h-2.5 w-2.5 text-white fill-white" />
       <span className="text-[10px] font-black text-white tracking-wide">
         VIP
+      </span>
+    </div>
+  );
+}
+
+// ── Action badge: Зарах / Түрээс ──
+function ActionBadge({ action }: { action: "sell" | "rent" }) {
+  return (
+    <div
+      className="absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1 px-2.5 py-1 rounded-full pointer-events-none shadow-md"
+      style={{
+        background:
+          action === "sell"
+            ? "linear-gradient(135deg, #f43f5e, #e11d48)"
+            : "linear-gradient(135deg, #3b82f6, #2563eb)",
+      }}
+    >
+      <span className="text-[10px] font-black text-white tracking-wide uppercase">
+        {action === "sell" ? "Зарах" : "Түрээс"}
       </span>
     </div>
   );
@@ -124,6 +159,8 @@ function ListingCard({
     item.cover_image || item.images?.[0]?.url || "/placeholder.svg";
   const price = parseFloat(String(item.price_per_day));
   const rating = parseFloat(String(item.avg_rating));
+  const isSale = item.bay_action === "sell";
+  const locationText = getLocationDisplay(item);
 
   return (
     <Card
@@ -167,6 +204,12 @@ function ListingCard({
             </span>
           )}
         </div>
+
+        {/* ⭐ NEW: Action badge — Зарах / Түрээс */}
+        {item.property_category === "bay" && item.bay_action && (
+          <ActionBadge action={item.bay_action} />
+        )}
+
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -205,17 +248,30 @@ function ListingCard({
               <p
                 className={cn(
                   "font-bold text-sm whitespace-nowrap",
-                  item.is_vip ? "text-amber-600" : "text-primary",
+                  isSale
+                    ? "text-rose-600"
+                    : item.is_vip
+                      ? "text-amber-600"
+                      : "text-primary",
                 )}
               >
                 {price.toLocaleString()}₮
               </p>
-              <p className="text-[10px] text-muted-foreground">/өдөр</p>
+              <p
+                className={cn(
+                  "text-[10px]",
+                  isSale
+                    ? "text-rose-600 font-semibold"
+                    : "text-muted-foreground",
+                )}
+              >
+                {isSale ? "Зарах үнэ" : "/өдөр"}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-1 text-muted-foreground mb-2">
             <MapPin className="h-3 w-3 shrink-0" />
-            <span className="text-xs">{item.location_name}</span>
+            <span className="text-xs truncate">{locationText}</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
@@ -238,7 +294,7 @@ function ListingCard({
                 {item.review_count > 0 && <span>({item.review_count})</span>}
               </span>
             )}
-            {item.max_guests > 0 && (
+            {!isSale && item.max_guests > 0 && (
               <span className="flex items-center gap-1">
                 <Users className="h-3 w-3" /> {item.max_guests} хүн
               </span>
@@ -368,10 +424,11 @@ export default function AdsPage() {
   const filtered = useMemo(() => {
     const applyFilters = (list: Listing[]) =>
       list.filter((l) => {
+        const locationText = getLocationDisplay(l);
         if (
           search &&
           !l.title.toLowerCase().includes(search.toLowerCase()) &&
-          !l.location_name?.toLowerCase().includes(search.toLowerCase())
+          !locationText.toLowerCase().includes(search.toLowerCase())
         )
           return false;
         if (
@@ -381,7 +438,12 @@ export default function AdsPage() {
           return false;
         if (
           activeLocations.length &&
-          !activeLocations.some((loc) => l.location_name?.includes(loc))
+          !activeLocations.some(
+            (loc) =>
+              l.location_name?.includes(loc) ||
+              l.district?.includes(loc) ||
+              l.zuslan_area?.includes(loc),
+          )
         )
           return false;
         if (
@@ -442,7 +504,6 @@ export default function AdsPage() {
       <div className="border-b border-border/60 bg-background/95 backdrop-blur sticky top-16 z-40">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            {/* Зар хайлт */}
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <input
@@ -461,7 +522,6 @@ export default function AdsPage() {
               )}
             </div>
 
-            {/* Байршил хайлт — dropdown */}
             <div className="relative w-full sm:w-52">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <input
@@ -549,7 +609,6 @@ export default function AdsPage() {
             </div>
           </div>
 
-          {/* Active location chips */}
           {activeLocations.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap mt-2">
               {activeLocations.map((loc) => (
@@ -566,7 +625,6 @@ export default function AdsPage() {
             </div>
           )}
 
-          {/* Category pills */}
           <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
             {categories.map(({ icon: Icon, label, id }) => (
               <button
@@ -595,10 +653,8 @@ export default function AdsPage() {
         </div>
       </div>
 
-      {/* Body */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex gap-6">
-          {/* Sidebar */}
           <aside
             className={cn(
               "shrink-0 w-64 space-y-5 transition-all duration-300 lg:block",
@@ -606,7 +662,6 @@ export default function AdsPage() {
             )}
           >
             <div className="sticky top-40 space-y-6">
-              {/* Байршил sidebar */}
               <div>
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-primary" /> Байршил
@@ -644,7 +699,6 @@ export default function AdsPage() {
                 </div>
               </div>
 
-              {/* Үнэ */}
               <div>
                 <h3 className="text-sm font-semibold mb-2">
                   Үнийн дээд хязгаар
@@ -666,7 +720,6 @@ export default function AdsPage() {
                 </div>
               </div>
 
-              {/* Өрөө */}
               <div>
                 <h3 className="text-sm font-semibold mb-2">Өрөөний тоо</h3>
                 <div className="flex gap-1.5">
@@ -687,7 +740,6 @@ export default function AdsPage() {
                 </div>
               </div>
 
-              {/* Ариун цэвэр */}
               <div>
                 <h3 className="text-sm font-semibold mb-2">Ариун цэвэр</h3>
                 <div className="flex gap-1.5">
@@ -708,7 +760,6 @@ export default function AdsPage() {
                 </div>
               </div>
 
-              {/* Хүний тоо */}
               <div>
                 <h3 className="text-sm font-semibold mb-2">Хүний тоо</h3>
                 <div className="flex gap-1.5 flex-wrap">
@@ -742,7 +793,6 @@ export default function AdsPage() {
             </div>
           </aside>
 
-          {/* Main */}
           <main className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-muted-foreground">
@@ -804,7 +854,6 @@ export default function AdsPage() {
               !error &&
               (filtered.vip.length > 0 || filtered.standard.length > 0) && (
                 <div className="space-y-8">
-                  {/* VIP */}
                   {filtered.vip.length > 0 && (
                     <div>
                       <div className="flex items-center gap-3 mb-4">
@@ -869,7 +918,6 @@ export default function AdsPage() {
                       </div>
                     </div>
                   )}
-                  {/* Хуваагч */}
                   {filtered.vip.length > 0 && filtered.standard.length > 0 && (
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-border/60">
@@ -883,7 +931,6 @@ export default function AdsPage() {
                       </span>
                     </div>
                   )}
-                  {/* Энгийн */}
                   {filtered.standard.length > 0 && (
                     <div
                       className={cn(
